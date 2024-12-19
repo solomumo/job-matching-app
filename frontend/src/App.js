@@ -1,26 +1,22 @@
-import React, { useEffect, useState } from 'react';
-import api from './services/api';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Register from './pages/Register';
+import Login from './pages/Login';
+import { AuthProvider } from './context/AuthContext';
+import Navbar from './components/Navbar';
 
 function App() {
-    const [data, setData] = useState([]);
-
-    useEffect(() => {
-        api.get('jobs/')
-           .then(response => setData(response.data))
-           .catch(error => console.error(error));
-    }, []);
-
-    return (
-        <div>
-            <h1>Job Matching App</h1>
-            {data.map(job => (
-                <div key={job.id}>
-                    <h2>{job.title}</h2>
-                    <p>{job.company}</p>
-                </div>
-            ))}
-        </div>
-    );
+  return (
+    <AuthProvider>
+      <Router>
+        <Navbar />
+        <Routes>
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
 }
 
 export default App;
