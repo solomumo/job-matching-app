@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User
+from .models import User, Plan, Preferences
 from django.contrib.auth import authenticate
 
 class UserSerializer(serializers.ModelSerializer):
@@ -29,3 +29,23 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('Invalid credentials')
         attrs['user'] = user
         return attrs
+
+class PlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Plan
+        fields = ['name', 'price', 'job_recommendations_limit', 
+                 'cv_customization_limit', 'cover_letter_customization_limit',
+                 'priority_support', 'trial_period_days', 'features']
+
+class PreferencesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Preferences
+        fields = ['roles', 'locations', 'skills', 'industries', 'remote_only']
+        
+    def create(self, validated_data):
+        user = self.context['request'].user
+        preferences, created = Preferences.objects.update_or_create(
+            user=user,
+            defaults=validated_data
+        )
+        return preferences
