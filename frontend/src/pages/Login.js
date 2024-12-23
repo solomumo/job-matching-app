@@ -68,13 +68,14 @@ const Login = () => {
     <Box sx={{ 
       display: 'flex', 
       minHeight: '100vh',
-      bgcolor: '#fafafa'
+      bgcolor: { xs: 'transparent', md: '#fafafa' },
+      flexDirection: { xs: 'column', md: 'row' }
     }}>
-      {/* Left Section */}
+      {/* Left Section - Hidden on mobile */}
       <Box
         sx={{
+          display: { xs: 'none', md: 'flex' },
           width: '35%',
-          display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
           p: 4,
@@ -151,17 +152,17 @@ const Login = () => {
           justifyContent: 'center',
           p: 4,
           pl: 8,
-          bgcolor: '#fafafa',
+          bgcolor: { xs: 'transparent', md: '#fafafa' },
         }}
       >
         <Box sx={{ 
           width: '100%', 
           maxWidth: 440,
           bgcolor: '#ffffff',
-          borderRadius: 2,
-          border: '1px solid #e0e0e0',
-          p: 4,
-          boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.05)'
+          borderRadius: { xs: 0, md: 2 },
+          border: { xs: 0, md: '1px solid #e0e0e0' },
+          p: { xs: 2, md: 4 },
+          boxShadow: { xs: 'none', md: '0px 4px 20px rgba(0, 0, 0, 0.05)' }
         }}>
           <Typography component="h1" variant="h4" sx={{ 
             mb: 3,
