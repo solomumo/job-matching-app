@@ -58,7 +58,7 @@ const Login = () => {
         access: data.token,
         refresh: data.refresh
       });
-      navigate('/dashboard');
+      navigate('/jobs');
     } catch (err) {
       setError(err.message);
     }

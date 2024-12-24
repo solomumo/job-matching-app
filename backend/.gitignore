@@ -1,0 +1,4 @@
+# ... other entries ...
+.env
+*.env
+.env.* 

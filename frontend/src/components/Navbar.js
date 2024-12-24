@@ -30,7 +30,7 @@ import { useAuth } from '../context/AuthContext';
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, logout, isLoading } = useAuth();
   const [profileAnchorEl, setProfileAnchorEl] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const theme = useTheme();
@@ -56,6 +56,11 @@ const Navbar = () => {
   };
 
   const isActive = (path) => location.pathname === path;
+
+  // Don't render anything while loading
+  if (isLoading) {
+    return null;
+  }
 
   // If not authenticated, render minimal navbar with just logo
   if (!isAuthenticated) {
