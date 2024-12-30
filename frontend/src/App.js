@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Register from './pages/Register';
 import Login from './pages/Login';
 import Plans from './pages/Plans';
@@ -9,11 +9,12 @@ import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import JobAnalysis from './pages/JobAnalysis';
+import PaymentCallback from './pages/PaymentCallback';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
+    <Router>
+      <AuthProvider>
         <Navbar />
         <Routes>
           <Route path="/register" element={<Register />} />
@@ -50,9 +51,24 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route path="/payment/callback" element={<PaymentCallback />} />
+
+          <Route 
+            path="/" 
+            element={
+              <ProtectedRoute>
+                <Navigate to="/jobs" replace />
+              </ProtectedRoute>
+            } 
+          />
+
+          <Route 
+            path="*" 
+            element={<Navigate to="/" replace />} 
+          />
         </Routes>
-      </Router>
-    </AuthProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 

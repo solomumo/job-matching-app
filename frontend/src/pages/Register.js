@@ -39,11 +39,16 @@ const Register = () => {
     e.preventDefault();
     setError('');
 
+    const nameParts = formData.name.trim().split(' ');
+    if (nameParts.length !== 2) {
+        setError('Please provide both first and last names.');
+        return;
+    }
     if (!formData.agreeToTerms) {
       setError('You must agree to the Terms of Service and Privacy Policy');
       return;
     }
-
+      
     try {
       const response = await fetch('/api/auth/register/', {
         method: 'POST',

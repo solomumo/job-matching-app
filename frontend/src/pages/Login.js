@@ -54,9 +54,12 @@ const Login = () => {
         throw new Error(data.error || 'Login failed');
       }
 
+      const expiresAt = new Date().getTime() + (60 * 60 * 1000);
+
       login(data.user, {
         access: data.token,
-        refresh: data.refresh
+        refresh: data.refresh,
+        expiresAt: expiresAt
       });
       navigate('/jobs');
     } catch (err) {

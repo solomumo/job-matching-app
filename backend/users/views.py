@@ -58,6 +58,14 @@ class PreferencesView(RetrieveUpdateAPIView):
         preferences, created = Preferences.objects.get_or_create(user=self.request.user)
         return preferences
 
+    def post(self, request, *args, **kwargs):
+        # Similar to update but explicitly handles creation
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()

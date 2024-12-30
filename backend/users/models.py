@@ -20,7 +20,6 @@ class User(AbstractUser):
     username = None  # Remove username field
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=255)
-    
     USERNAME_FIELD = 'email'  # Use email as the unique identifier
     REQUIRED_FIELDS = ['name']  # Required fields for createsuperuser
 
@@ -43,9 +42,9 @@ class Plan(models.Model):
     job_recommendations_limit = models.IntegerField(default=0)
     cv_customization_limit = models.IntegerField(default=0)
     cover_letter_customization_limit = models.IntegerField(default=0)
+    job_alerts_limit = models.IntegerField(default=0)  # Number of email alerts per week
     priority_support = models.BooleanField(default=False)
     trial_period_days = models.IntegerField(default=0)  # 7 days for Basic
-    features = models.TextField()  # Add a JSON string or simple text for plan details
 
     def __str__(self):
         return self.name

@@ -203,3 +203,13 @@ SIMPLE_JWT = {
 
 # OpenAI Configuration
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+# IntaSend Settings
+INTASEND_API_KEY = os.getenv('INTASEND_API_KEY')
+INTASEND_PUBLIC_KEY = os.getenv('INTASEND_PUBLIC_KEY')
+INTASEND_ENVIRONMENT = 'sandbox'  # Change to 'live' for production
+
+# URLs for payment callbacks
+FRONTEND_URL = 'http://localhost:3000'  # For development
+BACKEND_URL = 'http://localhost:8000'   # For development
+

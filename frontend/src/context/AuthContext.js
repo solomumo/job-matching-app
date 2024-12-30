@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const AuthContext = createContext(null);
 
@@ -9,6 +10,7 @@ export const AuthProvider = ({ children }) => {
   const [tokens, setTokens] = useState(null);
   // Add this state to track loading
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
 
   // Add this useEffect to check localStorage when the app loads
   useEffect(() => {
@@ -23,6 +25,20 @@ export const AuthProvider = ({ children }) => {
     }
     setIsLoading(false);  // Mark loading as complete
   }, []);
+
+  // Add this effect to check token expiration
+  useEffect(() => {
+    const checkTokenExpiration = () => {
+      const authData = JSON.parse(localStorage.getItem('authData'));
+      if (authData && isTokenExpired(authData.expiresAt)) {
+        logout();
+        navigate('/login');
+      }
+    };
+
+    const intervalId = setInterval(checkTokenExpiration, 60000); // Check every minute
+    return () => clearInterval(intervalId);
+  }, [navigate]);
 
   const login = (userData, tokens) => {
     setUser(userData);
@@ -41,6 +57,12 @@ export const AuthProvider = ({ children }) => {
     // Clear stored tokens
     localStorage.removeItem('token');
     localStorage.removeItem('refresh_token');
+  };
+
+  // Add this function to check token expiration
+  const isTokenExpired = (expiresAt) => {
+    if (!expiresAt) return true;
+    return new Date().getTime() > expiresAt;
   };
 
   return (
