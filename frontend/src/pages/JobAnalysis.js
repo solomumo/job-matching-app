@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
   Grid,
@@ -25,6 +25,7 @@ import {
   Warning,
   CloudUpload,
   Delete,
+  Refresh,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -42,6 +43,9 @@ const JobAnalysis = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const fileInputRef = useRef();
+  const navigate = useNavigate();
+  const [isAnalysisComplete, setIsAnalysisComplete] = useState(false);
+  const [hasGeneratedCV, setHasGeneratedCV] = useState(false);
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -61,6 +65,42 @@ const JobAnalysis = () => {
     }
   }, [id]);
 
+  useEffect(() => {
+    const fetchExistingAnalysis = async () => {
+      try {
+        const response = await api.get(`/api/jobs/${id}/analysis/`);
+        if (response.data) {
+          const analysisData = {
+            match_score: response.data.match_score || 0,
+            keyword_analysis: {
+              matching: response.data.keyword_analysis?.matching || [],
+              missing: response.data.keyword_analysis?.missing || []
+            },
+            ats_issues: response.data.ats_issues || [],
+            skill_matches: response.data.skill_matches || {}
+          };
+          setAnalysis(analysisData);
+          setIsAnalysisComplete(true);
+          
+          if (response.data.cv_text) {
+            setCvText(response.data.cv_text);
+          }
+          if (response.data.job_description) {
+            setJobDescription(response.data.job_description);
+          }
+        }
+      } catch (err) {
+        if (err.response?.status !== 404) {
+          console.error('Error fetching existing analysis:', err);
+        }
+      }
+    };
+
+    if (id) {
+      fetchExistingAnalysis();
+    }
+  }, [id]);
+
   const handleAnalyze = async () => {
     if (!isAuthenticated) {
       setError('Please log in to analyze resumes');
@@ -74,9 +114,22 @@ const JobAnalysis = () => {
         cv: cvText,
         jobDescription: jobDescription
       });
-      setAnalysis(response.data);
+      
+      const analysisData = {
+        match_score: response.data.match_score || 0,
+        keyword_analysis: {
+          matching: response.data.keyword_analysis?.matching || [],
+          missing: response.data.keyword_analysis?.missing || []
+        },
+        ats_issues: response.data.ats_issues || [],
+        skill_matches: response.data.skill_matches || {}
+      };
+      
+      setAnalysis(analysisData);
+      setIsAnalysisComplete(true);
     } catch (err) {
       setError('Failed to analyze CV');
+      console.error('Analysis error:', err);
     } finally {
       setIsAnalyzing(false);
     }
@@ -145,6 +198,43 @@ const JobAnalysis = () => {
     }
   };
 
+  const handleProceedToGenerate = () => {
+    navigate(`/jobs/${id}/generate-cv`, { 
+      state: { 
+        analysis,
+        cvText,
+        jobDescription,
+        isRegenerating: hasGeneratedCV
+      } 
+    });
+  };
+
+  useEffect(() => {
+    const checkExistingCV = async () => {
+      try {
+        const response = await api.get(`/api/jobs/${id}/generate-cv/`);
+        setHasGeneratedCV(!!response.data);
+      } catch (err) {
+        // If 404, CV doesn't exist yet
+        if (err.response?.status !== 404) {
+          console.error('Error checking CV status:', err);
+        }
+      }
+    };
+
+    if (isAnalysisComplete) {
+      checkExistingCV();
+    }
+  }, [id, isAnalysisComplete]);
+
+  const handleClearAnalysis = () => {
+    setAnalysis(null);
+    setIsAnalysisComplete(false);
+    setCvText('');
+    setJobDescription('');
+    clearFile();
+  };
+
   if (isLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
@@ -183,7 +273,7 @@ const JobAnalysis = () => {
               {analysis && (
                 <Box sx={{ textAlign: 'right', ml: 2 }}>
                   <Typography variant="h4" color="primary" fontWeight="bold">
-                    {analysis.match_score}%
+                    {analysis.match_score || 0}%
                   </Typography>
                   <Typography variant="caption" color="textSecondary">
                     Match Score
@@ -200,9 +290,20 @@ const JobAnalysis = () => {
         {/* Left Column - Job Description */}
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 3, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>
-              Job Description
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">
+                Job Description
+              </Typography>
+              {analysis && (
+                <Button
+                  size="small"
+                  startIcon={<Refresh />}
+                  onClick={handleClearAnalysis}
+                >
+                  New Analysis
+                </Button>
+              )}
+            </Box>
             <TextField
               fullWidth
               multiline
@@ -212,6 +313,7 @@ const JobAnalysis = () => {
               onChange={(e) => setJobDescription(e.target.value)}
               placeholder="Include only the responsibilities and qualifications sections of the Job Listing for better results."
               variant="outlined"
+              disabled={analysis !== null}
               sx={{
                 '& .MuiOutlinedInput-root': {
                   backgroundColor: '#f8f9fa'
@@ -284,7 +386,7 @@ const JobAnalysis = () => {
               onChange={(e) => setCvText(e.target.value)}
               placeholder="Paste your resume text here..."
               variant="outlined"
-              disabled={isExtracting}
+              disabled={isExtracting || analysis !== null}
               sx={{
                 mb: 2,
                 '& .MuiOutlinedInput-root': {
@@ -296,7 +398,7 @@ const JobAnalysis = () => {
             <Button
               variant="contained"
               onClick={handleAnalyze}
-              disabled={!cvText || !jobDescription || isAnalyzing}
+              disabled={!cvText || !jobDescription || isAnalyzing || analysis !== null}
               startIcon={isAnalyzing ? <CircularProgress size={20} /> : <Assessment />}
               fullWidth
               size="large"
@@ -311,7 +413,77 @@ const JobAnalysis = () => {
         {analysis && (
           <Grid item xs={12}>
             <Paper sx={{ p: 3, mt: 2 }}>
-              {/* ... Analysis results content ... */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h5" gutterBottom>
+                  Analysis Results
+                </Typography>
+                
+                {/* Match Score */}
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">
+                    Match Score: {analysis.match_score || 0}%
+                  </Typography>
+                </Box>
+
+                {/* Keywords Analysis */}
+                <Typography variant="h6" gutterBottom>
+                  Keywords Analysis
+                </Typography>
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                  <Grid item xs={6}>
+                    <Typography variant="subtitle1" color="success.main">
+                      Matching Keywords
+                    </Typography>
+                    <List>
+                      {(analysis.keyword_analysis?.matching || []).map((keyword, index) => (
+                        <ListItem key={index}>
+                          <CheckCircle color="success" sx={{ mr: 1 }} />
+                          <ListItemText primary={keyword} />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="subtitle1" color="error.main">
+                      Missing Keywords
+                    </Typography>
+                    <List>
+                      {(analysis.keyword_analysis?.missing || []).map((keyword, index) => (
+                        <ListItem key={index}>
+                          <Warning color="error" sx={{ mr: 1 }} />
+                          <ListItemText primary={keyword} />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Grid>
+                </Grid>
+
+                {/* ATS Recommendations */}
+                <Typography variant="h6" gutterBottom>
+                  ATS Recommendations
+                </Typography>
+                <List>
+                  {(analysis.ats_issues || []).map((issue, index) => (
+                    <ListItem key={index}>
+                      <Warning color="warning" sx={{ mr: 1 }} />
+                      <ListItemText primary={issue} />
+                    </ListItem>
+                  ))}
+                </List>
+
+                {/* Generate CV Button */}
+                <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="large"
+                    onClick={handleProceedToGenerate}
+                    startIcon={hasGeneratedCV ? <Refresh /> : <Description />}
+                  >
+                    {hasGeneratedCV ? 'Regenerate CV' : 'Generate Optimized CV'}
+                  </Button>
+                </Box>
+              </Box>
             </Paper>
           </Grid>
         )}

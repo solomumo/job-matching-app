@@ -6,7 +6,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import Plan, Preferences
+from .models import Plan, Preferences, User
+from payments.models import Subscription
 
 class RegisterUserView(CreateAPIView):
     serializer_class = UserSerializer
@@ -73,4 +74,24 @@ class PreferencesView(RetrieveUpdateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(serializer.data)
+
+class SubscriptionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            subscription = Subscription.objects.get(user=request.user)
+            return Response({
+                'is_active': subscription.is_valid(),
+                'plan': subscription.plan,
+                'billing_cycle': subscription.billing_cycle,
+                'next_billing_date': subscription.next_billing_date,
+                'amount': subscription.last_payment_amount,
+                'status': 'Active' if subscription.is_valid() else 'Inactive'
+            })
+        except Subscription.DoesNotExist:
+            return Response({
+                'is_active': False,
+                'plan': None
+            }, status=status.HTTP_200_OK)
 

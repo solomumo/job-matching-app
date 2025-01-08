@@ -1,5 +1,52 @@
 from rest_framework import serializers
-from .models import Job
+from .models import Job, JobApplication, GeneratedCV, CVAnalysis, CVTemplate
+
+class CVTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CVTemplate
+        fields = ['id', 'name', 'description', 'is_ats_optimized']
+
+class CVAnalysisSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CVAnalysis
+        fields = [
+            'match_score',
+            'matching_keywords',
+            'missing_keywords',
+            'ats_recommendations',
+            'skill_matches'
+        ]
+
+class GeneratedCVSerializer(serializers.ModelSerializer):
+    template = CVTemplateSerializer()
+
+    class Meta:
+        model = GeneratedCV
+        fields = [
+            'id',
+            'template',
+            'generated_cv_text',
+            'docx_file',
+            'pdf_file',
+            'created_at'
+        ]
+
+class JobApplicationSerializer(serializers.ModelSerializer):
+    cv_analysis = CVAnalysisSerializer()
+    generated_cvs = GeneratedCVSerializer(many=True)
+
+    class Meta:
+        model = JobApplication
+        fields = [
+            'id',
+            'status',
+            'match_score',
+            'applied_date',
+            'cv_analysis',
+            'generated_cvs',
+            'created_at',
+            'updated_at'
+        ]
 
 class JobSerializer(serializers.ModelSerializer):
     is_bookmarked = serializers.SerializerMethodField()

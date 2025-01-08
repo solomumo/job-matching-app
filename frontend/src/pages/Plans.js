@@ -11,15 +11,15 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   TextField,
-  CircularProgress
+  CircularProgress,
+  Alert
 } from '@mui/material';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CheckIcon from '@mui/icons-material/Check';
 import { useAuth } from '../context/AuthContext';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import api from '../services/api';
-import ChangePlanDialog from '../components/ChangePlanDialog';
 
 const Plans = () => {
   const navigate = useNavigate();
@@ -28,51 +28,37 @@ const Plans = () => {
   const [promoCode, setPromoCode] = useState('');
   const [promoDiscount, setPromoDiscount] = useState(null);
   const [promoError, setPromoError] = useState('');
-  const [activeSubscription, setActiveSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showChangePlanDialog, setShowChangePlanDialog] = useState(false);
-  const [changePlanLoading, setChangePlanLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchSubscription = useCallback(async () => {
-    try {
-      const response = await api.get('/api/payments/get-subscription/', {
-        headers: {
-          ...api.defaults.headers,
-          'Authorization': `Bearer ${tokens?.access}`,
-        }
-      });
-      setActiveSubscription(response.data.has_subscription ? response.data : null);
-    } catch (err) {
-      setActiveSubscription(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [tokens?.access]);
-
+  // Check if user has subscription and redirect if they do
   useEffect(() => {
+    const checkSubscription = async () => {
+      try {
+        const response = await api.get('/api/auth/subscription/', {
+          headers: {
+            ...api.defaults.headers,
+            'Authorization': `Bearer ${tokens?.access}`,
+          },
+        });
+        
+        if (response.data && response.data.is_active && response.data.plan) {
+          navigate('/subscription');
+          return;
+        }
+        setLoading(false);
+      } catch (error) {
+        console.error('Error checking subscription:', error);
+        setLoading(false);
+      }
+    };
+
     if (isAuthenticated && tokens?.access) {
-      fetchSubscription();
+      checkSubscription();
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated, tokens?.access, fetchSubscription]);
-
-  const handleCancelSubscription = async () => {
-    if (window.confirm('Are you sure you want to cancel your subscription?')) {
-      try {
-        await api.post('/api/payments/cancel-subscription/', {}, {
-          headers: {
-            ...api.defaults.headers,
-            'Authorization': `Bearer ${tokens?.access}`
-          }
-        });
-        await fetchSubscription();
-      } catch (error) {
-        setError('Failed to cancel subscription');
-      }
-    }
-  };
+  }, [isAuthenticated, tokens?.access, navigate]);
 
   const plans = {
     basic: {
@@ -86,7 +72,7 @@ const Plans = () => {
         cover_letter_customization_limit: 5,
         job_alerts_limit: 3,
         priority_support: false,
-        trial_period_days: 7
+        trial_period_days: 3
       }
     },
     premium: {
@@ -133,27 +119,19 @@ const Plans = () => {
 
   const validatePromoCode = async (planName) => {
     try {
-      const response = await fetch('/api/payments/validate-promo/', {
-        method: 'POST',
+      const response = await api.post('/api/payments/validate-promo/', {
+        code: promoCode,
+        plan: planName
+      }, {
         headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          code: promoCode,
-          plan: planName
-        })
+          Authorization: `Bearer ${tokens?.access}`
+        }
       });
       
-      const data = await response.json();
-      if (response.ok) {
-        setPromoDiscount(data.discount_percent);
-        setPromoError('');
-      } else {
-        setPromoError(data.error);
-        setPromoDiscount(null);
-      }
+      setPromoDiscount(response.data.discount_percent);
+      setPromoError('');
     } catch (err) {
-      setPromoError('Failed to validate promo code');
+      setPromoError(err.response?.data?.error || 'Invalid promo code');
       setPromoDiscount(null);
     }
   };
@@ -166,50 +144,23 @@ const Plans = () => {
 
     try {
       setError('');
-      const subscriptionResponse = await api.post('/api/payments/create-subscription/', {
+      const response = await api.post('/api/payments/create-subscription/', {
         plan: planName.toLowerCase(),
         billing_cycle: billingCycle,
         promo_code: promoCode || null
       }, {
         headers: {
-          ...api.defaults.headers,
-          'Authorization': `Bearer ${tokens?.access}`,
+          Authorization: `Bearer ${tokens?.access}`
         }
       });
 
-      if (subscriptionResponse.data.setup_url) {
-        window.location.href = subscriptionResponse.data.setup_url;
+      if (response.data.setup_url) {
+        window.location.href = response.data.setup_url;
       } else {
         throw new Error('No payment URL received');
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to initialize subscription');
-      console.error('Subscription error:', err.response?.data || err);
-    }
-  };
-
-  const handlePlanChange = async (newPlan) => {
-    setChangePlanLoading(true);
-    try {
-      const response = await api.post('/api/payments/change-subscription/', {
-        new_plan: newPlan.toLowerCase()
-      }, {
-        headers: {
-          ...api.defaults.headers,
-          'Authorization': `Bearer ${tokens?.access}`
-        }
-      });
-
-      if (response.data.status === 'success') {
-        await fetchSubscription();
-        setShowChangePlanDialog(false);
-      } else {
-        throw new Error(response.data.error || 'Failed to change plan');
-      }
-    } catch (error) {
-      setError(error.message || 'Failed to change plan. Please try again.');
-    } finally {
-      setChangePlanLoading(false);
     }
   };
 
@@ -217,78 +168,6 @@ const Plans = () => {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
         <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (activeSubscription && activeSubscription.has_subscription) {
-    return (
-      <Box sx={{ 
-        minHeight: '100vh',
-        bgcolor: '#fafafa',
-        py: { xs: 4, sm: 6 }
-      }}>
-        <Box sx={{ 
-          maxWidth: 1200,
-          mx: 'auto',
-          px: { xs: 2, sm: 3 },
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 4
-        }}>
-          <Typography variant="h4" gutterBottom>
-            Your Current Subscription
-          </Typography>
-          
-          <Card sx={{ maxWidth: 600, width: '100%', mx: 'auto', mt: 4 }}>
-            <CardContent>
-              <Typography variant="h5" gutterBottom>
-                {activeSubscription.plan.toUpperCase()} Plan
-              </Typography>
-              <Typography variant="body1">
-                Billing Cycle: {activeSubscription.billing_cycle}
-              </Typography>
-              <Typography variant="body1">
-                Next Billing Date: {activeSubscription.next_billing_date ? 
-                  new Date(activeSubscription.next_billing_date).toLocaleDateString() : 'N/A'}
-              </Typography>
-              <Typography variant="body1">
-                Auto-renew: {activeSubscription.auto_renew ? 'Yes' : 'No'}
-              </Typography>
-              
-              <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={() => setShowChangePlanDialog(true)}
-                  sx={{
-                    borderRadius: 1,
-                    textTransform: 'none'
-                  }}
-                >
-                  Change Plan
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="error"
-                  onClick={handleCancelSubscription}
-                >
-                  Cancel Subscription
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-
-          <ChangePlanDialog
-            open={showChangePlanDialog}
-            onClose={() => setShowChangePlanDialog(false)}
-            currentPlan={activeSubscription.plan}
-            currentBillingCycle={activeSubscription.billing_cycle}
-            onConfirm={handlePlanChange}
-            loading={changePlanLoading}
-          />
-        </Box>
       </Box>
     );
   }
@@ -468,9 +347,9 @@ const Plans = () => {
           width: '100%',
           px: { xs: 0, md: 4 }
         }}>
-          {Object.values(plans).map((plan) => (
+          {Object.entries(plans).map(([planKey, plan]) => (
             <Card 
-              key={plan.name}
+              key={planKey}
               sx={{
                 flex: 1,
                 borderRadius: 3,
@@ -543,62 +422,23 @@ const Plans = () => {
                 </Typography>
 
                 <List sx={{ mb: 'auto' }}>
-                  <ListItem sx={{ px: 0 }}>
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      <CheckIcon sx={{ color: '#2ecc71', fontSize: 20 }} />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary={`${plan.features.job_recommendations_limit === 0 ? 'Unlimited' : plan.features.job_recommendations_limit + ' weekly'} job recommendations`}
-                      sx={{ '& .MuiListItemText-primary': { fontSize: '14px' } }}
-                    />
-                  </ListItem>
-                  <ListItem sx={{ px: 0 }}>
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      <CheckIcon sx={{ color: '#2ecc71', fontSize: 20 }} />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary={`${plan.features.job_alerts_limit === 0 ? 'Unlimited' : plan.features.job_alerts_limit + ' weekly'} job alert emails`}
-                      sx={{ '& .MuiListItemText-primary': { fontSize: '14px' } }}
-                    />
-                  </ListItem>
-                  <ListItem sx={{ px: 0 }}>
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      <CheckIcon sx={{ color: '#2ecc71', fontSize: 20 }} />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary={`${plan.features.cv_customization_limit === 0 ? 'Unlimited' : plan.features.cv_customization_limit + ' weekly'} CV customizations`}
-                      sx={{ '& .MuiListItemText-primary': { fontSize: '14px' } }}
-                    />
-                  </ListItem>
-                  <ListItem sx={{ px: 0 }}>
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      <CheckIcon sx={{ color: '#2ecc71', fontSize: 20 }} />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary={`${plan.features.cover_letter_customization_limit === 0 ? 'Unlimited' : plan.features.cover_letter_customization_limit + ' weekly'} cover letter customizations`}
-                      sx={{ '& .MuiListItemText-primary': { fontSize: '14px' } }}
-                    />
-                  </ListItem>
-                  <ListItem sx={{ px: 0 }}>
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      <CheckIcon sx={{ color: '#2ecc71', fontSize: 20 }} />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary={plan.features.priority_support ? 'Priority support' : 'Basic support'}
-                      sx={{ '& .MuiListItemText-primary': { fontSize: '14px' } }}
-                    />
-                  </ListItem>
-                  {plan.features.trial_period_days > 0 && (
-                    <ListItem sx={{ px: 0 }}>
+                  {Object.entries(plan.features).map(([feature, value]) => (
+                    <ListItem key={feature} sx={{ px: 0 }}>
                       <ListItemIcon sx={{ minWidth: 36 }}>
                         <CheckIcon sx={{ color: '#2ecc71', fontSize: 20 }} />
                       </ListItemIcon>
                       <ListItemText 
-                        primary={`${plan.features.trial_period_days}-day free trial`}
+                        primary={
+                          feature === 'trial_period_days' ? 
+                            value > 0 ? `${value}-day free trial` : 'No trial period' :
+                          feature === 'priority_support' ?
+                            value ? 'Priority support' : 'Standard support' :
+                          `${value === 0 ? 'Unlimited' : value} ${feature.split('_').join(' ')}`
+                        }
                         sx={{ '& .MuiListItemText-primary': { fontSize: '14px' } }}
                       />
                     </ListItem>
-                  )}
+                  ))}
                 </List>
 
                 <Button
@@ -627,6 +467,12 @@ const Plans = () => {
             </Card>
           ))}
         </Box>
+
+        {error && (
+          <Alert severity="error" sx={{ mt: 3 }}>
+            {error}
+          </Alert>
+        )}
       </Box>
     </Box>
   );

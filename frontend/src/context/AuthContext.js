@@ -1,82 +1,124 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  // Initialize state from localStorage if available
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [tokens, setTokens] = useState(null);
-  // Add this state to track loading
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Add this useEffect to check localStorage when the app loads
+  // Define logout with useCallback
+  const logout = useCallback(() => {
+    setUser(null);
+    setTokens(null);
+    setIsAuthenticated(false);
+    // Clear data from localStorage
+    localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('authData');
+  }, []);
+
+  // Initialize state from localStorage
   useEffect(() => {
     const token = localStorage.getItem('token');
     const refreshToken = localStorage.getItem('refresh_token');
     const storedUser = localStorage.getItem('user');
+    const authData = localStorage.getItem('authData');
 
-    if (token && refreshToken && storedUser) {
-      setIsAuthenticated(true);
-      setTokens({ access: token, refresh: refreshToken });
-      setUser(JSON.parse(storedUser));
+    if (token && refreshToken && storedUser && authData) {
+      const parsedAuthData = JSON.parse(authData);
+      if (!isTokenExpired(parsedAuthData.expiresAt)) {
+        setIsAuthenticated(true);
+        setTokens({ access: token, refresh: refreshToken });
+        setUser(JSON.parse(storedUser));
+      } else {
+        logout(); // Use the stable reference of logout
+      }
     }
-    setIsLoading(false);  // Mark loading as complete
-  }, []);
+    setIsLoading(false); // Mark loading as complete
+  }, [logout]);
 
-  // Add this effect to check token expiration
+  // Check token expiration periodically
   useEffect(() => {
     const checkTokenExpiration = () => {
       const authData = JSON.parse(localStorage.getItem('authData'));
       if (authData && isTokenExpired(authData.expiresAt)) {
-        logout();
+        logout(); // Use the stable reference of logout
         navigate('/login');
       }
     };
 
     const intervalId = setInterval(checkTokenExpiration, 60000); // Check every minute
     return () => clearInterval(intervalId);
-  }, [navigate]);
+  }, [logout, navigate]);
+
+  // Logout user after inactivity
+  useEffect(() => {
+    let inactivityTimer;
+
+    const logoutOnInactivity = () => {
+      logout(); // Use the stable reference of logout
+      navigate('/login');
+    };
+
+    const resetInactivityTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(logoutOnInactivity, 15 * 60 * 1000); // 15 minutes
+    };
+
+    const activityEvents = ['mousemove', 'keydown', 'scroll', 'click'];
+    activityEvents.forEach(event =>
+      window.addEventListener(event, resetInactivityTimer)
+    );
+
+    resetInactivityTimer();
+
+    return () => {
+      activityEvents.forEach(event =>
+        window.removeEventListener(event, resetInactivityTimer)
+      );
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+    };
+  }, [logout, navigate]);
 
   const login = (userData, tokens) => {
+    const expiresAt = tokens.expiresAt || new Date().getTime() + 60 * 60 * 1000; // Default to 1 hour
     setUser(userData);
     setTokens(tokens);
     setIsAuthenticated(true);
-    // Store the token and user data
+    // Store data in localStorage
     localStorage.setItem('token', tokens.access);
     localStorage.setItem('refresh_token', tokens.refresh);
     localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem(
+      'authData',
+      JSON.stringify({ expiresAt })
+    );
   };
 
-  const logout = () => {
-    setUser(null);
-    setTokens(null);
-    setIsAuthenticated(false);
-    // Clear stored tokens
-    localStorage.removeItem('token');
-    localStorage.removeItem('refresh_token');
-  };
-
-  // Add this function to check token expiration
   const isTokenExpired = (expiresAt) => {
     if (!expiresAt) return true;
     return new Date().getTime() > expiresAt;
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      isAuthenticated, 
-      user, 
-      tokens,
-      login, 
-      logout,
-      isLoading
-    }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        user,
+        tokens,
+        login,
+        logout,
+        isLoading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => useContext(AuthContext); 
+export const useAuth = () => useContext(AuthContext);

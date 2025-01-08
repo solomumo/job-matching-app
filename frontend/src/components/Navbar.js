@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   AppBar,
   Box,
@@ -26,15 +26,47 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import MenuIcon from '@mui/icons-material/Menu';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
+import DescriptionIcon from '@mui/icons-material/Description';
 
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, logout, isLoading } = useAuth();
+  const { isAuthenticated, logout, isLoading, tokens } = useAuth();
   const [profileAnchorEl, setProfileAnchorEl] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [subscription, setSubscription] = useState(null);
+  const [loading, setLoading] = useState(true);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // Fetch subscription status
+  useEffect(() => {
+    const checkSubscription = async () => {
+      try {
+        const response = await api.get('/api/auth/subscription/', {
+          headers: {
+            ...api.defaults.headers,
+            'Authorization': `Bearer ${tokens?.access}`,
+          },
+        });
+        
+        if (response.data && response.data.is_active && response.data.plan) {
+          setSubscription(response.data);
+        }
+      } catch (error) {
+        console.error('Error checking subscription:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (isAuthenticated && tokens?.access) {
+      checkSubscription();
+    } else {
+      setLoading(false);
+    }
+  }, [isAuthenticated, tokens?.access]);
 
   const handleProfileClick = (event) => {
     setProfileAnchorEl(event.currentTarget);
@@ -58,7 +90,7 @@ const Navbar = () => {
   const isActive = (path) => location.pathname === path;
 
   // Don't render anything while loading
-  if (isLoading) {
+  if (isLoading || loading) {
     return null;
   }
 
@@ -92,6 +124,11 @@ const Navbar = () => {
 
   const navigationItems = [
     { icon: <WorkIcon />, text: 'My Jobs', path: '/jobs' },
+    { 
+      icon: <DescriptionIcon />, 
+      text: 'My Applications', 
+      path: '/applications' 
+    },
     { icon: <TuneIcon />, text: 'Preferences', path: '/preferences' },
     { icon: <HelpIcon />, text: 'Help', path: '/help' },
   ];
@@ -234,15 +271,61 @@ const Navbar = () => {
             anchorEl={profileAnchorEl}
             open={Boolean(profileAnchorEl)}
             onClose={handleClose}
-            sx={{ mt: 1 }}
+            sx={{
+              mt: 1,
+              '& .MuiPaper-root': {
+                borderRadius: 2,
+                minWidth: 180,
+                boxShadow: 'rgb(255, 255, 255) 0px 0px 0px 0px, rgba(0, 0, 0, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.05) 0px 4px 6px -2px',
+                '& .MuiMenu-list': {
+                  padding: '4px 0',
+                },
+              }
+            }}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           >
-            <MenuItem onClick={() => { handleClose(); navigate('/plans'); }}>
-              Plans
+            <MenuItem 
+              onClick={() => { 
+                handleClose(); 
+                navigate(subscription ? '/subscription' : '/plans'); 
+              }}
+              sx={{
+                fontSize: '14px',
+                py: 1,
+                px: 2,
+                '&:hover': {
+                  backgroundColor: 'rgba(107, 89, 204, 0.08)',
+                }
+              }}
+            >
+              {subscription ? 'Subscription' : 'Plans'}
             </MenuItem>
-            <MenuItem onClick={() => { handleClose(); navigate('/account'); }}>
+            <MenuItem 
+              onClick={() => { handleClose(); navigate('/account'); }}
+              sx={{
+                fontSize: '14px',
+                py: 1,
+                px: 2,
+                '&:hover': {
+                  backgroundColor: 'rgba(107, 89, 204, 0.08)',
+                }
+              }}
+            >
               Account
             </MenuItem>
-            <MenuItem onClick={handleLogout}>
+            <MenuItem 
+              onClick={handleLogout}
+              sx={{
+                fontSize: '14px',
+                py: 1,
+                px: 2,
+                color: '#ef4444',
+                '&:hover': {
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                }
+              }}
+            >
               Log Out
             </MenuItem>
           </Menu>

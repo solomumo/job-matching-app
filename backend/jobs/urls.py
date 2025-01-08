@@ -11,4 +11,6 @@ urlpatterns = [
     path('jobs/<int:job_id>/', views.get_job_details, name='job-details'),
     path('jobs/<int:job_id>/analyze/', views.analyze_job, name='analyze-job'),
     path('jobs/<int:job_id>/bookmark/', views.toggle_bookmark, name='toggle-bookmark'),
+    path('jobs/<int:job_id>/generate-cv/', views.generate_cv, name='generate-cv'),
+    path('jobs/<int:job_id>/download-cv/', views.download_cv, name='download-cv'),
 ]

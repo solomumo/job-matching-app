@@ -5,11 +5,27 @@ import Login from './pages/Login';
 import Plans from './pages/Plans';
 import Preferences from './pages/Preferences';
 import Jobs from './pages/Jobs';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
-import ProtectedRoute from './components/ProtectedRoute';
 import JobAnalysis from './pages/JobAnalysis';
 import PaymentCallback from './pages/PaymentCallback';
+import Subscription from './pages/Subscription';
+import GenerateCV from './pages/GenerateCV';
+
+// Protected Route component - moved to top level
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return null; // or a loading spinner
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+
+  return children;
+};
 
 function App() {
   return (
@@ -19,19 +35,20 @@ function App() {
         <Routes>
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/plans" element={<Plans />} />
+          <Route 
+            path="/subscription" 
+            element={
+              <ProtectedRoute>
+                <Subscription />
+              </ProtectedRoute>
+            } 
+          />
           <Route 
             path="/jobs" 
             element={
               <ProtectedRoute>
                 <Jobs />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/plans" 
-            element={
-              <ProtectedRoute>
-                <Plans />
               </ProtectedRoute>
             } 
           />
@@ -51,8 +68,15 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route 
+            path="/jobs/:id/generate-cv" 
+            element={
+              <ProtectedRoute>
+                <GenerateCV />
+              </ProtectedRoute>
+            } 
+          />
           <Route path="/payment/callback" element={<PaymentCallback />} />
-
           <Route 
             path="/" 
             element={
@@ -61,7 +85,6 @@ function App() {
               </ProtectedRoute>
             } 
           />
-
           <Route 
             path="*" 
             element={<Navigate to="/" replace />} 

@@ -35,6 +35,10 @@ class Subscription(models.Model):
     last_payment_date = models.DateTimeField(null=True)
     last_payment_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True)
     
+    def __str__(self):
+        status = "Active" if self.is_valid() else "Inactive"
+        return f"Subscription [{self.user.email}] - {self.plan.capitalize()} Plan ({self.billing_cycle}) - {status}"
+    
     def is_valid(self):
         return self.is_active and self.end_date > timezone.now()
     
