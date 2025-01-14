@@ -6,8 +6,16 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import Plan, Preferences, User
+from .models import Plan, Preferences, User, ExtractedJobTitles
 from payments.models import Subscription
+from jobs.job_title_extractor import JobTitleExtractor
+from google.oauth2 import id_token
+from google.auth.transport import requests
+from django.conf import settings
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import Flow
+import json
+import requests as http_requests
 
 class RegisterUserView(CreateAPIView):
     serializer_class = UserSerializer
@@ -57,10 +65,43 @@ class PreferencesView(RetrieveUpdateAPIView):
 
     def get_object(self):
         preferences, created = Preferences.objects.get_or_create(user=self.request.user)
+        if created or self._preferences_significantly_changed(preferences):
+            self._extract_and_save_job_titles(preferences)
         return preferences
 
+    def _preferences_significantly_changed(self, preferences):
+        if not hasattr(self.request.user, 'job_titles'):
+            return True
+            
+        old_data = self.get_serializer(preferences).data
+        new_data = self.request.data
+        
+        critical_fields = ['roles', 'skills']
+        return any(
+            old_data.get(field) != new_data.get(field)
+            for field in critical_fields
+            if field in new_data
+        )
+
+    def _extract_and_save_job_titles(self, preferences):
+        extractor = JobTitleExtractor()
+        titles = extractor.extract_job_titles({
+            'roles': preferences.roles,
+            'skills': preferences.skills,
+            'years_of_experience': preferences.years_of_experience,
+            'target_roles': preferences.roles
+        })
+
+        ExtractedJobTitles.objects.update_or_create(
+            user=self.request.user,
+            defaults={
+                'title_1': titles[0] if len(titles) > 0 else '',
+                'title_2': titles[1] if len(titles) > 1 else '',
+                'title_3': titles[2] if len(titles) > 2 else ''
+            }
+        )
+
     def post(self, request, *args, **kwargs):
-        # Similar to update but explicitly handles creation
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -94,4 +135,75 @@ class SubscriptionView(APIView):
                 'is_active': False,
                 'plan': None
             }, status=status.HTTP_200_OK)
+
+class GoogleAuthView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        print("\n=== Starting Google Auth Process ===")
+        print(f"Request data: {request.data}")
+        
+        token = request.data.get('token')
+        print(f"Extracted token: {token and 'exists' or 'missing'}")
+        
+        if not token:
+            print("Token missing in request")
+            return Response(
+                {'error': 'Token is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            print("Getting user info from Google")
+            # Use the access token to get user info directly
+            userinfo_response = http_requests.get(
+                'https://www.googleapis.com/oauth2/v3/userinfo',
+                headers={'Authorization': f'Bearer {token}'}
+            )
+            
+            if not userinfo_response.ok:
+                print(f"Failed to get user info: {userinfo_response.text}")
+                return Response(
+                    {'error': 'Failed to get user info from Google'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            userinfo = userinfo_response.json()
+            print(f"User info received: {userinfo}")
+
+            email = userinfo.get('email')
+            name = userinfo.get('name', '')
+            
+            if not email:
+                print("No email in user info")
+                return Response(
+                    {'error': 'Email not provided by Google'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            print(f"Creating/getting user with email: {email}")
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={'name': name}
+            )
+            print(f"User {'created' if created else 'retrieved'} with email: {email}")
+
+            refresh = RefreshToken.for_user(user)
+            print("JWT tokens generated successfully")
+            
+            return Response({
+                'token': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': UserSerializer(user).data
+            })
+
+        except Exception as e:
+            print(f"Unexpected error: {str(e)}")
+            print(f"Error type: {type(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+            return Response(
+                {'error': f'Authentication failed: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 

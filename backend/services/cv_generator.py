@@ -1,6 +1,7 @@
 from docx import Document
 from fpdf import FPDF
 import os
+import json
 
 class CVGenerator:
     @staticmethod
@@ -9,7 +10,37 @@ class CVGenerator:
 
         # Add Name and Contact Info
         doc.add_heading(cv_data['name'], level=1)
-        doc.add_paragraph(cv_data['contact_info'])
+        
+        # Format contact info properly
+        contact_info = cv_data['contact_info']
+        if isinstance(contact_info, dict):
+            contact_lines = []
+            if contact_info.get('email'):
+                contact_lines.append(f"Email: {contact_info['email']}")
+            if contact_info.get('phone_number'):
+                contact_lines.append(f"Phone: {contact_info['phone_number']}")
+            if contact_info.get('location'):
+                contact_lines.append(f"Location: {contact_info['location']}")
+            if contact_info.get('linkedin'):
+                contact_lines.append(f"LinkedIn: {contact_info['linkedin']}")
+            doc.add_paragraph('\n'.join(contact_lines))
+        else:
+            # If it's a string, try to parse it as JSON first
+            try:
+                contact_dict = json.loads(contact_info)
+                contact_lines = []
+                if contact_dict.get('email'):
+                    contact_lines.append(f"Email: {contact_dict['email']}")
+                if contact_dict.get('phone_number'):
+                    contact_lines.append(f"Phone: {contact_dict['phone_number']}")
+                if contact_dict.get('location'):
+                    contact_lines.append(f"Location: {contact_dict['location']}")
+                if contact_dict.get('linkedin'):
+                    contact_lines.append(f"LinkedIn: {contact_dict['linkedin']}")
+                doc.add_paragraph('\n'.join(contact_lines))
+            except (json.JSONDecodeError, TypeError):
+                # If parsing fails, use as-is
+                doc.add_paragraph(str(contact_info))
 
         # Add Professional Summary
         doc.add_heading('Professional Summary', level=2)

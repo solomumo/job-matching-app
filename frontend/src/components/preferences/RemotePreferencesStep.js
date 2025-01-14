@@ -2,6 +2,13 @@ import React from 'react';
 import { Box, Typography, FormControlLabel, Switch } from '@mui/material';
 
 function RemotePreferencesStep({ preferences, setPreferences }) {
+  const handleRemoteChange = (value) => {
+    setPreferences(prev => ({
+      ...prev,
+      remote_only: value
+    }));
+  };
+
   return (
     <Box>
       <Typography variant="h6" gutterBottom>
@@ -10,10 +17,8 @@ function RemotePreferencesStep({ preferences, setPreferences }) {
       <FormControlLabel
         control={
           <Switch
-            checked={preferences.remoteOnly}
-            onChange={(e) => {
-              setPreferences(prev => ({ ...prev, remoteOnly: e.target.checked }));
-            }}
+            checked={preferences.remote_only}
+            onChange={(e) => handleRemoteChange(e.target.checked)}
             sx={{
               '& .MuiSwitch-switchBase.Mui-checked': {
                 color: '#2ecc71',

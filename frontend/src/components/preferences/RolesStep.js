@@ -1,17 +1,7 @@
 import React from 'react';
 import { Box, Typography, Autocomplete, TextField } from '@mui/material';
 import { autocompleteStyles } from './commonStyles';
-
-const roleOptions = [
-  'Software Engineer',
-  'Frontend Developer',
-  'Backend Developer',
-  'Full Stack Developer',
-  'DevOps Engineer',
-  'Data Scientist',
-  'Product Manager',
-  // Add more roles as needed
-];
+import { ROLE_OPTIONS } from '../../constants';
 
 function RolesStep({ preferences, setPreferences }) {
   return (
@@ -21,7 +11,7 @@ function RolesStep({ preferences, setPreferences }) {
       </Typography>
       <Autocomplete
         multiple
-        options={roleOptions}
+        options={ROLE_OPTIONS}
         value={preferences.roles}
         onChange={(event, newValue) => {
           setPreferences(prev => ({ ...prev, roles: newValue }));

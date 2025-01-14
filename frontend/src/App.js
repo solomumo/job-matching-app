@@ -11,6 +11,7 @@ import JobAnalysis from './pages/JobAnalysis';
 import PaymentCallback from './pages/PaymentCallback';
 import Subscription from './pages/Subscription';
 import GenerateCV from './pages/GenerateCV';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 
 // Protected Route component - moved to top level
 const ProtectedRoute = ({ children }) => {
@@ -29,69 +30,71 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <Navbar />
-        <Routes>
-          <Route path="/register" element={<Register />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/plans" element={<Plans />} />
-          <Route 
-            path="/subscription" 
-            element={
-              <ProtectedRoute>
-                <Subscription />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/jobs" 
-            element={
-              <ProtectedRoute>
-                <Jobs />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/preferences" 
-            element={
-              <ProtectedRoute>
-                <Preferences />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/jobs/:id/analyze" 
-            element={
-              <ProtectedRoute>
-                <JobAnalysis />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/jobs/:id/generate-cv" 
-            element={
-              <ProtectedRoute>
-                <GenerateCV />
-              </ProtectedRoute>
-            } 
-          />
-          <Route path="/payment/callback" element={<PaymentCallback />} />
-          <Route 
-            path="/" 
-            element={
-              <ProtectedRoute>
-                <Navigate to="/jobs" replace />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="*" 
-            element={<Navigate to="/" replace />} 
-          />
-        </Routes>
-      </AuthProvider>
-    </Router>
+    <GoogleOAuthProvider clientId="1009534603089-2lkecure0lt1kvrmbonleuf9m0vfuagj.apps.googleusercontent.com">
+      <Router>
+        <AuthProvider>
+          <Navbar />
+          <Routes>
+            <Route path="/register" element={<Register />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/plans" element={<Plans />} />
+            <Route 
+              path="/subscription" 
+              element={
+                <ProtectedRoute>
+                  <Subscription />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/jobs" 
+              element={
+                <ProtectedRoute>
+                  <Jobs />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/preferences" 
+              element={
+                <ProtectedRoute>
+                  <Preferences />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/jobs/:id/analyze" 
+              element={
+                <ProtectedRoute>
+                  <JobAnalysis />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/jobs/:id/generate-cv" 
+              element={
+                <ProtectedRoute>
+                  <GenerateCV />
+                </ProtectedRoute>
+              } 
+            />
+            <Route path="/payment/callback" element={<PaymentCallback />} />
+            <Route 
+              path="/" 
+              element={
+                <ProtectedRoute>
+                  <Navigate to="/jobs" replace />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="*" 
+              element={<Navigate to="/" replace />} 
+            />
+          </Routes>
+        </AuthProvider>
+      </Router>
+    </GoogleOAuthProvider>
   );
 }
 

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Plan, Preferences
+from .models import User, Plan, Preferences, ExtractedJobTitles
 from django.contrib.auth import authenticate
 
 class UserSerializer(serializers.ModelSerializer):
@@ -40,8 +40,18 @@ class PlanSerializer(serializers.ModelSerializer):
 class PreferencesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Preferences
-        fields = ['roles', 'locations', 'skills', 'industries', 'remote_only']
+        fields = ['roles', 'locations', 'skills', 'industries', 'remote_only', 'years_of_experience']
         
+    def validate(self, data):
+        """
+        Check that at least one value is provided for required fields
+        """
+        required_fields = ['roles', 'locations', 'skills', 'industries']
+        for field in required_fields:
+            if field in data and not data[field]:
+                raise serializers.ValidationError(f"{field} cannot be empty")
+        return data
+
     def create(self, validated_data):
         user = self.context['request'].user
         preferences, created = Preferences.objects.update_or_create(
@@ -49,3 +59,8 @@ class PreferencesSerializer(serializers.ModelSerializer):
             defaults=validated_data
         )
         return preferences
+
+class ExtractedJobTitlesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExtractedJobTitles
+        fields = ['title_1', 'title_2', 'title_3', 'updated_at']

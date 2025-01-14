@@ -3,8 +3,8 @@ from rest_framework.decorators import api_view, permission_classes, parser_class
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .models import Job, JobAnalysis, JobApplication, GeneratedCV, CVAnalysis, CVTemplate
-from .serializers import JobSerializer, JobApplicationSerializer, GeneratedCVSerializer, CVAnalysisSerializer
+from .models import Job, JobAnalysis, JobApplication, GeneratedCV, CVAnalysis, CVTemplate, JobMatch
+from .serializers import JobSerializer, JobApplicationSerializer, GeneratedCVSerializer, CVAnalysisSerializer, JobMatchSerializer
 from services.openai_service import OpenAIService
 import json
 import textract  
@@ -16,6 +16,10 @@ from docx import Document
 from reportlab.pdfgen import canvas
 import io
 from services.cv_generator import CVGenerator
+from django.conf import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 class JobViewSet(viewsets.ModelViewSet):
     queryset = Job.objects.all()
@@ -332,32 +336,35 @@ def download_cv(request, job_id):
             job_id=job_id,
             user=request.user
         )
-        generated_cv = GeneratedCV.objects.get(
+        # Get the latest CV
+        generated_cv = GeneratedCV.objects.filter(
             job_application=job_application,
             user=request.user
-        )
+        ).latest('created_at')
         
-        format = request.query_params.get('format', 'docx')
-        
-        if format == 'docx':
-            # Generate DOCX file if it doesn't exist
-            if not generated_cv.docx_file:
-                cv_data = json.loads(generated_cv.generated_cv_text)
-                output_path = f'generated_cvs/docx/cv_{job_id}_{request.user.id}.docx'
-                CVGenerator.generate_ats_docx(cv_data, output_path)
-                generated_cv.docx_file = output_path
-                generated_cv.save()
+        # Generate DOCX file if it doesn't exist
+        if not generated_cv.docx_file:
+            cv_data = json.loads(generated_cv.generated_cv_text)
+            # Create relative path within media directory
+            relative_path = f'generated_cvs/docx/cv_{job_id}_{request.user.id}.docx'
+            # Create full path
+            full_path = os.path.join(settings.MEDIA_ROOT, relative_path)
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
             
-            return FileResponse(
-                open(generated_cv.docx_file.path, 'rb'),
-                as_attachment=True,
-                filename=f'optimized-cv.docx'
-            )
+            # Generate the file
+            CVGenerator.generate_ats_docx(cv_data, full_path)
+            # Save relative path to model
+            generated_cv.docx_file = relative_path
+            generated_cv.save()
         
-        return Response(
-            {'error': 'Unsupported format'},
-            status=status.HTTP_400_BAD_REQUEST
+        response = FileResponse(
+            open(generated_cv.docx_file.path, 'rb'),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         )
+        response['Content-Disposition'] = f'attachment; filename="optimized-cv.docx"'
+        return response
+        
     except Exception as e:
         print(f"Error in download_cv: {str(e)}")  # Add logging
         return Response(
@@ -382,4 +389,61 @@ def update_generated_cv(request, job_id):
         return Response(
             {'error': 'Generated CV not found'},
             status=status.HTTP_404_NOT_FOUND
+        )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def toggle_hidden(request, job_id):
+    try:
+        job = Job.objects.get(id=job_id)
+        if job.hidden_by.filter(id=request.user.id).exists():
+            job.hidden_by.remove(request.user)
+            is_hidden = False
+        else:
+            job.hidden_by.add(request.user)
+            is_hidden = True
+        
+        return Response({
+            'status': 'success',
+            'is_hidden': is_hidden
+        })
+    except Job.DoesNotExist:
+        return Response(
+            {'error': 'Job not found'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_matched_jobs(request):
+    try:
+        logger.info(f"Query params: {request.query_params}")
+        show_hidden = request.query_params.get('show_hidden', 'false').lower() == 'true'
+        sort_by = request.query_params.get('sort_by', 'date_posted')
+        
+        # Get jobs through JobMatch model
+        matches = JobMatch.objects.filter(
+            user=request.user,
+            match_score__gte=75  # Minimum match threshold
+        ).select_related('job')
+        
+        if not show_hidden:
+            matches = matches.filter(is_hidden=False)
+            
+        # Sort the matches
+        if sort_by == 'date_posted':
+            matches = matches.order_by('-job__date_posted')
+        elif sort_by == 'match_score':
+            matches = matches.order_by('-match_score')
+            
+        logger.info(f"Found {matches.count()} matched jobs for user")
+
+        serializer = JobMatchSerializer(matches, many=True)
+        return Response(serializer.data)
+
+    except Exception as e:
+        logger.error(f"Error in get_matched_jobs: {str(e)}", exc_info=True)
+        return Response(
+            {'error': f'Error fetching matched jobs: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

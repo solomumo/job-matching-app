@@ -1,15 +1,7 @@
 import React from 'react';
 import { Box, Typography, Autocomplete, TextField } from '@mui/material';
 import { autocompleteStyles } from './commonStyles';
-
-const locationOptions = [
-  'New York, NY',
-  'San Francisco, CA',
-  'London, UK',
-  'Berlin, Germany',
-  'Toronto, Canada',
-  // Add more locations as needed
-];
+import { LOCATION_OPTIONS } from '../../constants';
 
 function LocationsStep({ preferences, setPreferences }) {
   return (
@@ -19,7 +11,7 @@ function LocationsStep({ preferences, setPreferences }) {
       </Typography>
       <Autocomplete
         multiple
-        options={locationOptions}
+        options={LOCATION_OPTIONS}
         value={preferences.locations}
         onChange={(event, newValue) => {
           setPreferences(prev => ({ ...prev, locations: newValue }));

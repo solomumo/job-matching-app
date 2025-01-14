@@ -59,10 +59,26 @@ class Preferences(models.Model):
     remote_only = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
+    years_of_experience = models.CharField(max_length=255, default='0-1 years')
+    
     class Meta:
         verbose_name_plural = "preferences"
 
     def __str__(self):
         return f"Preferences for {self.user.email}"
+
+
+class ExtractedJobTitles(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='job_titles')
+    title_1 = models.CharField(max_length=255)
+    title_2 = models.CharField(max_length=255)
+    title_3 = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Job titles for {self.user.email}"
+
+    class Meta:
+        verbose_name_plural = "Extracted Job Titles"
 

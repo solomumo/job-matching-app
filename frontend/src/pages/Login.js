@@ -9,7 +9,6 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import GoogleIcon from '@mui/icons-material/Google';
-import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -17,7 +16,7 @@ import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, handleGoogleLogin } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -64,6 +63,14 @@ const Login = () => {
       navigate('/jobs');
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleGoogleLoginClick = async () => {
+    try {
+      await handleGoogleLogin();
+    } catch (error) {
+      setError(error.message);
     }
   };
 
@@ -177,29 +184,12 @@ const Login = () => {
           </Typography>
 
           {/* Social Login Buttons */}
-          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<LinkedInIcon />}
-              sx={{
-                color: '#000',
-                borderColor: '#e0e0e0',
-                textTransform: 'none',
-                fontSize: '14px',
-                py: 1,
-                '&:hover': {
-                  borderColor: '#bdbdbd',
-                  bgcolor: 'transparent'
-                }
-              }}
-            >
-              LinkedIn
-            </Button>
+          <Box sx={{ mb: 2 }}>
             <Button
               fullWidth
               variant="outlined"
               startIcon={<GoogleIcon />}
+              onClick={handleGoogleLoginClick}
               sx={{
                 color: '#000',
                 borderColor: '#e0e0e0',
@@ -212,7 +202,7 @@ const Login = () => {
                 }
               }}
             >
-              Google
+              Continue with Google
             </Button>
           </Box>
 

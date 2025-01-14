@@ -10,17 +10,62 @@ class Job(models.Model):
     company = models.CharField(max_length=255)
     location = models.CharField(max_length=255)
     date_posted = models.DateField()
-    url = models.URLField(unique=True)  # Ensure no duplicate jobs
-    description = models.TextField(blank=True, null=True)  # Optional job description
-    scraped_at = models.DateTimeField(auto_now_add=True)  # When the job was scraped
+    job_description = models.TextField()
+    url = models.URLField(unique=True)
+    source = models.CharField(max_length=50, choices=[
+        ('LINKEDIN', 'LinkedIn'),
+        ('MYJOBMAG', 'MyJobMag'),
+        ('RELIEFWEB', 'ReliefWeb'),
+        ('CORPORATESTAFFING', 'Corporate Staffing'),
+    ])
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    hidden_by = models.ManyToManyField(
+        get_user_model(),
+        related_name='hidden_jobs',
+        blank=True
+    )
     bookmarked_by = models.ManyToManyField(
-        User,
+        get_user_model(),
         related_name='bookmarked_jobs',
         blank=True
     )
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['job_title']),
+            models.Index(fields=['location']),
+            models.Index(fields=['date_posted']),
+            models.Index(fields=['source']),
+            models.Index(fields=['created_at']),
+        ]
+
     def __str__(self):
         return f"{self.job_title} at {self.company}"
+
+class JobMatch(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    job = models.ForeignKey(Job, on_delete=models.CASCADE)
+    match_score = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(100)]
+    )
+    match_rationale = models.TextField()
+    is_bookmarked = models.BooleanField(default=False)
+    is_hidden = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'job')
+        indexes = [
+            models.Index(fields=['user', 'match_score']),
+            models.Index(fields=['user', 'is_bookmarked']),
+            models.Index(fields=['user', 'is_hidden']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.job.job_title} ({self.match_score}%)"
 
 class JobAnalysis(models.Model):
     job = models.ForeignKey('Job', on_delete=models.CASCADE)

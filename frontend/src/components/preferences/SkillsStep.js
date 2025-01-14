@@ -1,17 +1,7 @@
 import React from 'react';
 import { Box, Typography, Autocomplete, TextField } from '@mui/material';
 import { autocompleteStyles } from './commonStyles';
-
-const skillOptions = [
-  'JavaScript',
-  'Python',
-  'React',
-  'Node.js',
-  'SQL',
-  'AWS',
-  'Docker',
-  // Add more skills as needed
-];
+import { SKILL_OPTIONS } from '../../constants';
 
 function SkillsStep({ preferences, setPreferences }) {
   return (
@@ -21,7 +11,7 @@ function SkillsStep({ preferences, setPreferences }) {
       </Typography>
       <Autocomplete
         multiple
-        options={skillOptions}
+        options={SKILL_OPTIONS}
         value={preferences.skills}
         onChange={(event, newValue) => {
           setPreferences(prev => ({ ...prev, skills: newValue }));

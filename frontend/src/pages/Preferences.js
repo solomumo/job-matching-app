@@ -26,8 +26,11 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Grid2 from '@mui/material/Grid2';
+import YearsOfExperienceStep from '../components/preferences/YearsOfExperienceStep';
+
 const steps = [
   { label: 'Target Roles', sublabel: 'Roles', required: ['roles'] },
+  { label: 'Years of Experience', sublabel: 'Experience', required: ['years_of_experience'] },
   { label: 'Preferred Locations', sublabel: 'Locations', required: ['locations'] },
   { label: 'Key Skills', sublabel: 'Skills', required: ['skills'] },
   { label: 'Industries', sublabel: 'Industries', required: ['industries'] },
@@ -47,9 +50,11 @@ function Preferences() {
     locations: [],
     skills: [],
     industries: [],
-    remoteOnly: false
+    remote_only: false,
+    years_of_experience: ''
   });
   const { tokens } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     const fetchPreferences = async () => {
@@ -114,12 +119,13 @@ function Preferences() {
           >
             {[
               { title: 'Target Roles', data: preferences.roles, icon: 'work' },
+              { title: 'Years of Experience', data: [preferences.years_of_experience], icon: 'timeline' },
               { title: 'Locations', data: preferences.locations, icon: 'location_on' },
               { title: 'Key Skills', data: preferences.skills, icon: 'psychology' },
               { title: 'Industries', data: preferences.industries, icon: 'business' },
               { 
                 title: 'Remote Work', 
-                data: [preferences.remoteOnly ? "Remote Only" : "Open to Office & Remote"], 
+                data: [preferences.remote_only ? "Remote Only" : "Open to Office & Remote"], 
                 icon: 'computer' 
               }
             ].map((section, index) => (
@@ -180,9 +186,9 @@ function Preferences() {
                         label={item}
                         size="small"
                         sx={{
-                          bgcolor: section.title === 'Remote Work' && preferences.remoteOnly ? 
+                          bgcolor: section.title === 'Remote Work' && preferences.remote_only ? 
                             '#6b59cc' : '#f5f5f5',
-                          color: section.title === 'Remote Work' && preferences.remoteOnly ? 
+                          color: section.title === 'Remote Work' && preferences.remote_only ? 
                             '#ffffff' : '#2c3035',
                           fontWeight: 500,
                         }}
@@ -201,46 +207,96 @@ function Preferences() {
             borderTop: '1px solid #e0e0e0',
             pt: 4 
           }}>
-            <Button
-              variant="outlined"
-              onClick={() => setActiveStep(0)}
-              sx={{
-                borderColor: '#6b59cc',
-                color: '#6b59cc',
-                borderRadius: '12px',
-                px: 4,
-                py: 1.5,
-                textTransform: 'none',
-                fontSize: '1rem',
-                fontWeight: 500,
-                '&:hover': {
-                  borderColor: '#5849ac',
-                  bgcolor: 'rgba(107, 89, 204, 0.04)'
-                }
-              }}
-            >
-              Edit Preferences
-            </Button>
-            <Button
-              variant="contained"
-              onClick={() => navigate('/dashboard')}
-              sx={{
-                bgcolor: '#6b59cc',
-                borderRadius: '12px',
-                px: 4,
-                py: 1.5,
-                textTransform: 'none',
-                fontSize: '1rem',
-                fontWeight: 500,
-                boxShadow: 'none',
-                '&:hover': {
-                  bgcolor: '#5849ac',
-                  boxShadow: '0px 8px 24px rgba(107, 89, 204, 0.25)'
-                }
-              }}
-            >
-              Back to Dashboard
-            </Button>
+            {isEditing ? (
+              <>
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setActiveStep(steps.length - 1);
+                  }}
+                  sx={{
+                    borderColor: '#6b59cc',
+                    color: '#6b59cc',
+                    borderRadius: '12px',
+                    px: 4,
+                    py: 1.5,
+                    textTransform: 'none',
+                    fontSize: '1rem',
+                    fontWeight: 500,
+                    '&:hover': {
+                      borderColor: '#5849ac',
+                      bgcolor: 'rgba(107, 89, 204, 0.04)'
+                    }
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={handleSubmit}
+                  sx={{
+                    bgcolor: '#6b59cc',
+                    borderRadius: '12px',
+                    px: 4,
+                    py: 1.5,
+                    textTransform: 'none',
+                    fontSize: '1rem',
+                    fontWeight: 500,
+                    boxShadow: 'none',
+                    '&:hover': {
+                      bgcolor: '#5849ac',
+                      boxShadow: '0px 8px 24px rgba(107, 89, 204, 0.25)'
+                    }
+                  }}
+                >
+                  Save Changes
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outlined"
+                  onClick={handleEditClick}
+                  sx={{
+                    borderColor: '#6b59cc',
+                    color: '#6b59cc',
+                    borderRadius: '12px',
+                    px: 4,
+                    py: 1.5,
+                    textTransform: 'none',
+                    fontSize: '1rem',
+                    fontWeight: 500,
+                    '&:hover': {
+                      borderColor: '#5849ac',
+                      bgcolor: 'rgba(107, 89, 204, 0.04)'
+                    }
+                  }}
+                >
+                  Edit Preferences
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={() => navigate('/dashboard')}
+                  sx={{
+                    bgcolor: '#6b59cc',
+                    borderRadius: '12px',
+                    px: 4,
+                    py: 1.5,
+                    textTransform: 'none',
+                    fontSize: '1rem',
+                    fontWeight: 500,
+                    boxShadow: 'none',
+                    '&:hover': {
+                      bgcolor: '#5849ac',
+                      boxShadow: '0px 8px 24px rgba(107, 89, 204, 0.25)'
+                    }
+                  }}
+                >
+                  Back to Dashboard
+                </Button>
+              </>
+            )}
           </Box>
         </Paper>
       </Box>
@@ -306,7 +362,13 @@ function Preferences() {
     setActiveStep((prev) => prev - 1);
   };
 
+  const handleEditClick = () => {
+    setIsEditing(true);
+    setActiveStep(0);
+  };
+
   const handleSubmit = async () => {
+    setError('');
     try {
       const response = await api.post('/api/auth/preferences/', preferences, {
         headers: {
@@ -316,6 +378,7 @@ function Preferences() {
       });
       
       if (response.status === 200 || response.status === 201) {
+        setIsEditing(false);
         navigate('/dashboard');
       } else {
         throw new Error('Failed to save preferences');
@@ -330,15 +393,25 @@ function Preferences() {
       case 0:
         return <RolesStep preferences={preferences} setPreferences={setPreferences} />;
       case 1:
-        return <LocationsStep preferences={preferences} setPreferences={setPreferences} />;
+        return <YearsOfExperienceStep preferences={preferences} setPreferences={setPreferences} />;
       case 2:
-        return <SkillsStep preferences={preferences} setPreferences={setPreferences} />;
+        return <LocationsStep preferences={preferences} setPreferences={setPreferences} />;
       case 3:
-        return <IndustriesStep preferences={preferences} setPreferences={setPreferences} />;
+        return <SkillsStep preferences={preferences} setPreferences={setPreferences} />;
       case 4:
-        return <RemotePreferencesStep preferences={preferences} setPreferences={setPreferences} />;
+        return <IndustriesStep preferences={preferences} setPreferences={setPreferences} />;
       case 5:
-        return <SummaryStep preferences={preferences} />;
+        return <RemotePreferencesStep preferences={preferences} setPreferences={setPreferences} />;
+      case 6:
+        return <SummaryStep 
+          preferences={preferences} 
+          isEditing={isEditing}
+          onCancel={() => {
+            setIsEditing(false);
+            setActiveStep(steps.length - 1);
+          }}
+          onSave={handleSubmit}
+        />;
       default:
         return 'Unknown step';
     }
@@ -508,7 +581,6 @@ function Preferences() {
                   <Button
                     variant="contained"
                     onClick={handleSubmit}
-                    startIcon={<CheckCircleIcon />}
                     sx={{
                       bgcolor: '#2ecc71',
                       textTransform: 'none',
@@ -520,7 +592,7 @@ function Preferences() {
                       }
                     }}
                   >
-                    Complete Setup
+                    Save Changes
                   </Button>
                 ) : (
                   <Button

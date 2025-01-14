@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useGoogleLogin } from '@react-oauth/google';
 
 const AuthContext = createContext(null);
 
@@ -8,6 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [tokens, setTokens] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   // Define logout with useCallback
@@ -105,6 +107,51 @@ export const AuthProvider = ({ children }) => {
     return new Date().getTime() > expiresAt;
   };
 
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        console.log('Google token response:', tokenResponse);
+        
+        const res = await fetch('http://localhost:8000/api/auth/google/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            token: tokenResponse.access_token
+          }),
+        });
+
+        console.log('Response status:', res.status);
+        const data = await res.json();
+        console.log('Backend response:', data);
+        
+        if (res.ok) {
+          login(data.user, {
+            access: data.token,
+            refresh: data.refresh,
+            expiresAt: new Date().getTime() + (60 * 60 * 1000)
+          });
+          navigate('/jobs');
+        } else {
+          throw new Error(data.error || 'Google authentication failed');
+        }
+      } catch (error) {
+        console.error('Authentication error:', {
+          message: error.message,
+          fullError: error
+        });
+        setError(error.message);
+      }
+    },
+    onError: (error) => {
+      console.error('Google Login Failed:', error);
+      setError('Google authentication failed');
+    },
+    scope: 'email profile',
+    flow: 'implicit'
+  });
+
   return (
     <AuthContext.Provider
       value={{
@@ -114,6 +161,9 @@ export const AuthProvider = ({ children }) => {
         login,
         logout,
         isLoading,
+        error,
+        setError,
+        handleGoogleLogin
       }}
     >
       {children}

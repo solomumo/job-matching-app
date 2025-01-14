@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import json
 
 # Load environment variables from .env file
 load_dotenv()
@@ -213,3 +214,23 @@ INTASEND_ENVIRONMENT = 'sandbox'  # Change to 'live' for production
 FRONTEND_URL = 'http://localhost:3000'  # For development
 BACKEND_URL = 'http://localhost:8000'   # For development
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Proxy Configuration
+PROXY_AUTH = os.getenv('PROXY_AUTH')  # Format: 'username:password'
+PROXY_URL = os.getenv('PROXY_URL')    # Format: 'geo.iproyal.com:12321'
+
+# ReliefWeb Configuration
+RELIEFWEB_APP_NAME = os.getenv('RELIEFWEB_APP_NAME')
+
+# Celery Configuration
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Africa/Nairobi'
+
+GOOGLE_CLIENT_SECRETS = json.loads(os.getenv('GOOGLE_CLIENT_SECRETS', '{}'))
+GOOGLE_OAUTH2_CLIENT_ID = GOOGLE_CLIENT_SECRETS.get('web', {}).get('client_id')

@@ -16,21 +16,80 @@ import { Description, Download, Edit, Refresh } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-const formatCVForDisplay = (jsonString) => {
+const formatCVText = (cvData) => {
   try {
-    const data = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+    const data = typeof cvData === 'string' ? JSON.parse(cvData) : cvData;
     
-    // Validate data structure
-    if (!data || typeof data !== 'object') {
-      return jsonString;
+    let formattedText = '';
+    
+    // Name
+    if (data.name) {
+      formattedText += `${data.name}\n`;
     }
-
-    // Return the formatted JSON string with proper indentation
-    return JSON.stringify(data, null, 2);
+    
+    // Contact Info - handle both object and string formats
+    if (data.contact_info) {
+      if (typeof data.contact_info === 'object') {
+        const contactLines = [];
+        if (data.contact_info.email) contactLines.push(`Email: ${data.contact_info.email}`);
+        if (data.contact_info.phone_number) contactLines.push(`Phone: ${data.contact_info.phone_number}`);
+        if (data.contact_info.location) contactLines.push(`Location: ${data.contact_info.location}`);
+        if (data.contact_info.linkedin) contactLines.push(`LinkedIn: ${data.contact_info.linkedin}`);
+        formattedText += contactLines.join('\n');
+      } else {
+        formattedText += data.contact_info;
+      }
+    }
+    formattedText += '\n\n';
+    
+    // Professional Summary
+    if (data.professional_summary) {
+      formattedText += `Professional Summary\n${data.professional_summary}\n\n`;
+    }
+    
+    // Skills
+    if (Array.isArray(data.skills)) {
+      formattedText += `Skills\n${data.skills.join(', ')}\n\n`;
+    }
+    
+    // Experience
+    if (Array.isArray(data.experience)) {
+      formattedText += `Experience\n`;
+      data.experience.forEach(job => {
+        formattedText += `${job.job_title} - ${job.company} (${job.date_range})\n`;
+        if (job.location) {
+          formattedText += `${job.location}\n`;
+        }
+        if (Array.isArray(job.bullet_points)) {
+          job.bullet_points.forEach(bullet => {
+            formattedText += `• ${bullet}\n`;
+          });
+        }
+        formattedText += '\n';
+      });
+    }
+    
+    // Education
+    if (Array.isArray(data.education)) {
+      formattedText += `Education\n`;
+      data.education.forEach(edu => {
+        formattedText += `${edu.degree} - ${edu.institution} (${edu.graduation_year})\n`;
+      });
+      formattedText += '\n';
+    }
+    
+    // Certifications
+    if (Array.isArray(data.certifications) && data.certifications.length > 0) {
+      formattedText += `Certifications\n`;
+      data.certifications.forEach(cert => {
+        formattedText += `${cert.name} (${cert.year}) - ${cert.issuing_organization}\n`;
+      });
+    }
+    
+    return formattedText;
   } catch (e) {
-    console.warn('Error parsing CV JSON:', e);
-    // If parsing fails, return the original text
-    return jsonString || 'No CV content available';
+    console.error('Error formatting CV:', e);
+    return typeof cvData === 'string' ? cvData : JSON.stringify(cvData, null, 2);
   }
 };
 
@@ -52,7 +111,7 @@ const GenerateCV = () => {
       const response = await api.get(`/api/jobs/${id}/generate-cv/`);
       if (response.data && response.data.generated_cv_text) {
         setGeneratedCV(response.data);
-        setEditedCVText(formatCVForDisplay(response.data.generated_cv_text));
+        setEditedCVText(formatCVText(response.data.generated_cv_text));
         return true; // CV exists
       }
       return false; // No CV exists
@@ -101,7 +160,7 @@ const GenerateCV = () => {
       });
       
       setGeneratedCV(response.data);
-      setEditedCVText(formatCVForDisplay(response.data.generated_cv_text));
+      setEditedCVText(formatCVText(response.data.generated_cv_text));
     } catch (err) {
       setError('Failed to generate CV');
       console.error(err);
@@ -129,34 +188,30 @@ const GenerateCV = () => {
     setEditedCVText(e.target.value);
   };
 
-  const handleDownload = async (format) => {
+  const handleDownload = async () => {
     try {
-      const url = `/api/jobs/${id}/download-cv/?format=${format}`;
-      console.log('Making request to:', url);
-      
-      const response = await api.get(url, {
+      const response = await api.get(`/api/jobs/${id}/download-cv/`, {
         responseType: 'blob',
         headers: {
-          ...api.defaults.headers,
-          'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          'Authorization': `Bearer ${tokens?.access}`
+          'Accept': '*/*'  // Accept any content type
         }
       });
 
+      // Create blob and download
       const blob = new Blob([response.data], {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.setAttribute('download', `optimized-cv.${format}`);
+      link.setAttribute('download', 'optimized-cv.docx');
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(downloadUrl);
     } catch (err) {
       console.error('Download error:', err);
-      setError(err.response?.data?.error || 'Failed to download CV');
+      setError('Failed to download CV. Please try again.');
     }
   };
 
@@ -240,7 +295,7 @@ const GenerateCV = () => {
               <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
                 <Button
                   variant="contained"
-                  onClick={() => handleDownload('docx')}
+                  onClick={handleDownload}
                   startIcon={<Download />}
                 >
                   Download DOCX
