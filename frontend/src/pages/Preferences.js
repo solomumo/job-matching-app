@@ -66,9 +66,28 @@ function Preferences() {
           },
         });
         
-        if (response.data) {
+        // Check if user has actual preferences set
+        const hasPreferences = response.data && 
+          response.data.roles?.length > 0 &&
+          response.data.locations?.length > 0 &&
+          response.data.skills?.length > 0 &&
+          response.data.industries?.length > 0 &&
+          response.data.years_of_experience;
+
+        if (hasPreferences) {
           setPreferences(response.data);
           setActiveStep(steps.length - 1);
+        } else {
+          // Initialize with empty preferences and start at step 0
+          setPreferences({
+            roles: [],
+            locations: [],
+            skills: [],
+            industries: [],
+            remote_only: false,
+            years_of_experience: ''
+          });
+          setActiveStep(0);
         }
       } catch (error) {
         console.error('Error fetching preferences:', error);
@@ -420,7 +439,13 @@ function Preferences() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#fafafa', pt: { xs: 2, sm: 4 }, pb: { xs: 4, sm: 6 } }}>
       <Container maxWidth="md">
-        {preferences.roles.length > 0 && activeStep === steps.length - 1 ? (
+        {preferences.roles?.length > 0 && 
+         preferences.locations?.length > 0 && 
+         preferences.skills?.length > 0 && 
+         preferences.industries?.length > 0 && 
+         preferences.years_of_experience && 
+         !isEditing && 
+         activeStep === steps.length - 1 ? (
           renderExistingPreferences()
         ) : (
           <Box sx={{ width: '100%' }}>

@@ -59,7 +59,7 @@ class Preferences(models.Model):
     remote_only = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    years_of_experience = models.CharField(max_length=255, default='0-1 years')
+    years_of_experience = models.CharField(max_length=255)
     
     class Meta:
         verbose_name_plural = "preferences"

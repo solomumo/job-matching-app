@@ -10,24 +10,21 @@ import {
   ListItemText,
   ToggleButtonGroup,
   ToggleButton,
-  TextField,
   CircularProgress,
   Alert
 } from '@mui/material';
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import CheckIcon from '@mui/icons-material/Check';
 import { useAuth } from '../context/AuthContext';
-import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import api from '../services/api';
 
 const Plans = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { currentPlan, currentBillingCycle } = location.state || {};
   const { isAuthenticated, tokens } = useAuth();
   const [billingCycle, setBillingCycle] = useState('quarterly');
-  const [promoCode, setPromoCode] = useState('');
-  const [promoDiscount, setPromoDiscount] = useState(null);
-  const [promoError, setPromoError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -35,14 +32,15 @@ const Plans = () => {
   useEffect(() => {
     const checkSubscription = async () => {
       try {
-        const response = await api.get('/api/auth/subscription/', {
+        const response = await api.get('/api/payments/get-subscription/', {
           headers: {
             ...api.defaults.headers,
             'Authorization': `Bearer ${tokens?.access}`,
           },
         });
         
-        if (response.data && response.data.is_active && response.data.plan) {
+        // Only redirect if user has active subscription AND is not trying to change plans
+        if (response.data && response.data.is_active && response.data.plan && !location.state?.currentPlan) {
           navigate('/subscription');
           return;
         }
@@ -58,7 +56,7 @@ const Plans = () => {
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated, tokens?.access, navigate]);
+  }, [isAuthenticated, tokens?.access, navigate, location.state?.currentPlan]);
 
   const plans = {
     basic: {
@@ -71,8 +69,7 @@ const Plans = () => {
         cv_customization_limit: 5,
         cover_letter_customization_limit: 5,
         job_alerts_limit: 3,
-        priority_support: false,
-        trial_period_days: 3
+        priority_support: false
       }
     },
     premium: {
@@ -85,8 +82,7 @@ const Plans = () => {
         cv_customization_limit: 0,
         cover_letter_customization_limit: 0,
         job_alerts_limit: 0,
-        priority_support: true,
-        trial_period_days: 0
+        priority_support: true
       }
     }
   };
@@ -117,25 +113,6 @@ const Plans = () => {
     }
   };
 
-  const validatePromoCode = async (planName) => {
-    try {
-      const response = await api.post('/api/payments/validate-promo/', {
-        code: promoCode,
-        plan: planName
-      }, {
-        headers: {
-          Authorization: `Bearer ${tokens?.access}`
-        }
-      });
-      
-      setPromoDiscount(response.data.discount_percent);
-      setPromoError('');
-    } catch (err) {
-      setPromoError(err.response?.data?.error || 'Invalid promo code');
-      setPromoDiscount(null);
-    }
-  };
-
   const handleSubscribe = async (planName) => {
     if (!isAuthenticated) {
       navigate('/register');
@@ -147,7 +124,6 @@ const Plans = () => {
       const response = await api.post('/api/payments/create-subscription/', {
         plan: planName.toLowerCase(),
         billing_cycle: billingCycle,
-        promo_code: promoCode || null
       }, {
         headers: {
           Authorization: `Bearer ${tokens?.access}`
@@ -161,6 +137,56 @@ const Plans = () => {
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to initialize subscription');
+    }
+  };
+
+  const handlePlanSelection = async (selectedPlan) => {
+    if (currentPlan) {
+      // Handle plan change
+      try {
+        const response = await api.post('/api/payments/change-subscription/', {
+          new_plan: selectedPlan.name
+        }, {
+          headers: {
+            Authorization: `Bearer ${tokens?.access}`
+          }
+        });
+
+        if (response.data.status === 'upgrade_initiated') {
+          // Redirect to payment
+          window.location.href = response.data.checkout_url;
+        } else if (response.data.status === 'downgrade_scheduled') {
+          // Show success message and redirect back to subscription page
+          navigate('/subscription', { 
+            state: { 
+              message: `Your plan will be downgraded on ${new Date(response.data.effective_date).toLocaleDateString()}`
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error changing plan:', error);
+        // Handle error appropriately
+      }
+    } else {
+      // Handle new subscription
+      try {
+        const response = await api.post('/api/payments/create-subscription/', {
+          plan: selectedPlan.name.toLowerCase(),
+          billing_cycle: billingCycle,
+        }, {
+          headers: {
+            Authorization: `Bearer ${tokens?.access}`
+          }
+        });
+
+        if (response.data.setup_url) {
+          window.location.href = response.data.setup_url;
+        } else {
+          throw new Error('No payment URL received');
+        }
+      } catch (err) {
+        setError(err.response?.data?.error || 'Failed to initialize subscription');
+      }
     }
   };
 
@@ -244,98 +270,7 @@ const Plans = () => {
           alignItems: 'center',
           gap: 2
         }}>
-          <Box sx={{ 
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            position: 'relative',
-            width: '100%',
-            maxWidth: 400
-          }}>
-            <Box sx={{ 
-              display: 'flex',
-              alignItems: 'center',
-              flex: 1,
-              bgcolor: '#fff',
-              borderRadius: 2,
-              border: promoError ? '1px solid #ff4d4f' : '1px solid #e5e7eb',
-              transition: 'all 0.2s ease',
-              '&:focus-within': {
-                borderColor: '#2ecc71',
-                boxShadow: '0 0 0 2px rgba(46, 204, 113, 0.1)'
-              }
-            }}>
-              <LocalOfferIcon sx={{ 
-                ml: 2,
-                color: promoError ? '#ff4d4f' : promoDiscount ? '#2ecc71' : '#64748b'
-              }} />
-              <TextField
-                placeholder="Enter promo code"
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value)}
-                variant="standard"
-                InputProps={{
-                  disableUnderline: true,
-                }}
-                sx={{ 
-                  flex: 1,
-                  '& .MuiInputBase-input': {
-                    px: 2,
-                    py: 1.5,
-                    fontSize: '14px',
-                  }
-                }}
-              />
-            </Box>
-            <Button
-              variant="contained"
-              onClick={() => validatePromoCode('basic')}
-              disabled={!promoCode}
-              sx={{
-                bgcolor: '#2ecc71',
-                textTransform: 'none',
-                fontSize: '14px',
-                fontWeight: 500,
-                px: 3,
-                py: 1.5,
-                borderRadius: 2,
-                '&:hover': {
-                  bgcolor: '#27ae60'
-                },
-                '&.Mui-disabled': {
-                  bgcolor: '#e5e7eb',
-                  color: '#94a3b8'
-                }
-              }}
-            >
-              Apply
-            </Button>
-          </Box>
-          
-          {promoError && (
-            <Typography sx={{ 
-              color: '#ff4d4f',
-              fontSize: '13px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0.5
-            }}>
-              {promoError}
-            </Typography>
-          )}
-          
-          {promoDiscount && (
-            <Typography sx={{ 
-              color: '#2ecc71',
-              fontSize: '13px',
-              fontWeight: 500,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0.5
-            }}>
-              {promoDiscount}% discount will be applied to your subscription
-            </Typography>
-          )}
+          {/* Remove promo code section */}
         </Box>
 
         <Box sx={{ 
@@ -429,11 +364,9 @@ const Plans = () => {
                       </ListItemIcon>
                       <ListItemText 
                         primary={
-                          feature === 'trial_period_days' ? 
-                            value > 0 ? `${value}-day free trial` : 'No trial period' :
                           feature === 'priority_support' ?
                             value ? 'Priority support' : 'Standard support' :
-                          `${value === 0 ? 'Unlimited' : value} ${feature.split('_').join(' ')}`
+                          `${value === 0 ? 'Unlimited' : value} ${feature.split('_').join(' ')}/week`
                         }
                         sx={{ '& .MuiListItemText-primary': { fontSize: '14px' } }}
                       />
@@ -444,7 +377,7 @@ const Plans = () => {
                 <Button
                   fullWidth
                   variant="contained"
-                  onClick={() => handleSubscribe(plan.name)}
+                  onClick={() => handlePlanSelection(plan)}
                   sx={{ 
                     mt: 4,
                     py: 1.5,

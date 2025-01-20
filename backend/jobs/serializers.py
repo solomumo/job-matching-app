@@ -31,23 +31,6 @@ class GeneratedCVSerializer(serializers.ModelSerializer):
             'created_at'
         ]
 
-class JobApplicationSerializer(serializers.ModelSerializer):
-    cv_analysis = CVAnalysisSerializer()
-    generated_cvs = GeneratedCVSerializer(many=True)
-
-    class Meta:
-        model = JobApplication
-        fields = [
-            'id',
-            'status',
-            'match_score',
-            'applied_date',
-            'cv_analysis',
-            'generated_cvs',
-            'created_at',
-            'updated_at'
-        ]
-
 class JobSerializer(serializers.ModelSerializer):
     is_hidden = serializers.SerializerMethodField()
     is_bookmarked = serializers.SerializerMethodField()
@@ -80,17 +63,33 @@ class JobSerializer(serializers.ModelSerializer):
         return False
 
 class JobMatchSerializer(serializers.ModelSerializer):
-    job = JobSerializer()  # Nested serializer to include job details
+    job = JobSerializer()
+    is_applied = serializers.SerializerMethodField()
     
     class Meta:
         model = JobMatch
+        fields = ['id', 'job', 'match_score', 'match_rationale', 'is_bookmarked', 'is_hidden', 'is_applied']
+
+    def get_is_applied(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return JobApplication.objects.filter(
+                job=obj.job,
+                user=request.user,
+                status='APPLIED'
+            ).exists()
+        return False
+
+class JobApplicationSerializer(serializers.ModelSerializer):
+    job = JobSerializer()
+    
+    class Meta:
+        model = JobApplication
         fields = [
-            'id',
+            'id', 
             'job',
-            'match_score',
-            'match_rationale',
-            'is_bookmarked',
-            'is_hidden',
-            'created_at',
+            'status', 
+            'applied_date', 
+            'created_at', 
             'updated_at'
         ]

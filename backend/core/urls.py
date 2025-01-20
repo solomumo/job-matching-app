@@ -19,11 +19,15 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from payments.views import InitiatePaymentView, PaymentWebhookView
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.decorators.csrf import csrf_exempt
+from .views import AdminLoginView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('admin/login/', csrf_exempt(AdminLoginView.as_view()), name='admin_login'),
     path('api/auth/', include('users.urls')),
     path('api/', include('jobs.urls')),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/payments/', include('payments.urls')),
+    path('api/notifications/', include('notifications.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

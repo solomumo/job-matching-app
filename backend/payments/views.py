@@ -13,6 +13,7 @@ from .serializers import PromoCodeSerializer, ReferralProgramSerializer
 from .models import PromoCode, ReferralProgram
 from django.db.models import F
 from rest_framework.permissions import IsAuthenticated
+from .pricing import PRICING_PLANS, BILLING_CYCLES, calculate_price, calculate_discount, get_plan_limits
 
 class InitiatePaymentView(APIView):
     def post(self, request):
@@ -580,13 +581,19 @@ class GetSubscriptionView(APIView):
                     'next_billing_date': subscription.next_billing_date,
                     'recommendations_used': subscription.recommendations_used,
                     'cv_customizations_used': subscription.cv_customizations_used,
-                    'payment_id': subscription.payment_id
+                    'payment_id': subscription.payment_id,
+                    'last_payment_date': subscription.last_payment_date,
+                    'last_payment_amount': subscription.last_payment_amount,
+                    'status': 'Active' if subscription.is_valid() else 'Inactive'
+                    
                 }, status=status.HTTP_200_OK)
             
             # Return a valid response even if subscription is invalid
             return Response({
                 'has_subscription': False,
-                'message': 'No active subscription found'
+                'message': 'No active subscription found',
+                'status': 'Inactive',
+                'cancelled_at': subscription.cancelled_at
             }, status=status.HTTP_200_OK)
                 
         except (Subscription.DoesNotExist, AttributeError):
@@ -698,7 +705,7 @@ class VerifySubscriptionView(APIView):
                         'is_active': True,
                         'auto_renew': True,
                         'last_payment_date': timezone.now(),
-                        'last_payment_amount': subscription_data.get('amount')
+                        'last_payment_amount': subscription_data['plan'].get('amount')
                     }
                 )
                 
@@ -725,3 +732,24 @@ class VerifySubscriptionView(APIView):
                 {'error': str(e)}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+class BillingHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            subscription = request.user.subscription
+            if not subscription:
+                return Response({'error': 'No subscription found'}, status=404)
+
+            # Return subscription payment history from our database
+            return Response([{
+                'id': subscription.payment_id,
+                'date': subscription.last_payment_date,
+                'amount': subscription.last_payment_amount,
+                'status': 'Completed' if subscription.is_active else 'Cancelled',
+                'billing_cycle': subscription.billing_cycle.capitalize()
+            }])
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)

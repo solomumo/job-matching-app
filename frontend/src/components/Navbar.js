@@ -28,6 +28,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import DescriptionIcon from '@mui/icons-material/Description';
+import NotificationsMenu from './NotificationsMenu';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -44,7 +45,7 @@ const Navbar = () => {
   useEffect(() => {
     const checkSubscription = async () => {
       try {
-        const response = await api.get('/api/auth/subscription/', {
+        const response = await api.get('/api/payments/get-subscription/', {
           headers: {
             ...api.defaults.headers,
             'Authorization': `Bearer ${tokens?.access}`,
@@ -123,15 +124,23 @@ const Navbar = () => {
   }
 
   const navigationItems = [
-    { icon: <WorkIcon />, text: 'My Jobs', path: '/jobs' },
+    { icon: <WorkIcon />, text: 'My Jobs', path: '/jobs', tourId: 'jobs' },
     { 
       icon: <DescriptionIcon />, 
       text: 'My Applications', 
-      path: '/applications' 
+      path: '/applications',
+      tourId: 'applications'
     },
-    { icon: <TuneIcon />, text: 'Preferences', path: '/preferences' },
-    { icon: <HelpIcon />, text: 'Help', path: '/help' },
+    { icon: <TuneIcon />, text: 'Preferences', path: '/preferences', tourId: 'preferences' },
+    { icon: <HelpIcon />, text: 'Help', path: '/help', tourId: 'help' },
   ];
+
+  const handleNavigation = (path) => {
+    navigate(path);
+    if (isMobile) {
+      setMobileMenuOpen(false);
+    }
+  };
 
   const mobileDrawer = (
     <Drawer
@@ -209,7 +218,8 @@ const Navbar = () => {
                   <Button
                     key={item.text}
                     startIcon={item.icon}
-                    onClick={() => navigate(item.path)}
+                    onClick={() => handleNavigation(item.path)}
+                    data-tour={item.tourId}
                     sx={{
                       color: '#384347',
                       textTransform: 'none',
@@ -232,25 +242,12 @@ const Navbar = () => {
 
         {/* Right Section - User Actions */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 'auto' }}>
-          <IconButton
-            size="large"
-            onClick={() => navigate('/notifications')}
-            sx={{ 
-              color: '#384347',
-              borderBottom: isActive('/notifications') ? '2px solid #2ecc71' : '2px solid transparent',
-              borderRadius: 0,
-              padding: '6px 12px',
-              '&:hover': { 
-                bgcolor: 'rgba(107, 89, 204, 0.08)'
-              }
-            }}
-          >
-            <Badge badgeContent={3} color="error">
-              <NotificationsIcon />
-            </Badge>
-          </IconButton>
+          <Box className="notifications">
+            <NotificationsMenu />
+          </Box>
 
           <Button
+            className="profile-menu"
             startIcon={<AccountCircleIcon />}
             endIcon={<KeyboardArrowDownIcon />}
             onClick={handleProfileClick}
@@ -288,7 +285,7 @@ const Navbar = () => {
             <MenuItem 
               onClick={() => { 
                 handleClose(); 
-                navigate(subscription ? '/subscription' : '/plans'); 
+                navigate('/plans'); 
               }}
               sx={{
                 fontSize: '14px',
@@ -299,7 +296,7 @@ const Navbar = () => {
                 }
               }}
             >
-              {subscription ? 'Subscription' : 'Plans'}
+              Plans & Pricing
             </MenuItem>
             <MenuItem 
               onClick={() => { handleClose(); navigate('/account'); }}

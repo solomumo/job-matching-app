@@ -5,6 +5,8 @@ from django.db import models
 from .models import JobMatch, Job
 from django.utils import timezone
 import json 
+from notifications.models import Notification
+from django.contrib.contenttypes.models import ContentType
 
 logger = logging.getLogger(__name__)
 
@@ -182,36 +184,46 @@ class JobMatcher:
             # Create a job lookup dictionary
             jobs_dict = {job.id: job for job in unmatched_jobs}
             
-            # Create JobMatch objects
+            # Create JobMatch objects and notifications for high-quality matches
             batch_matches = []
+            notifications = []
+            
             for match in matches_data:
                 try:
                     job = jobs_dict.get(match['job_id'])
-                    if job:
-                        batch_matches.append(
-                            JobMatch(
+                    if job and float(match['match_score']) >= 85:  # High-quality matches only
+                        # Create JobMatch
+                        job_match = JobMatch(
+                            user=user,
+                            job=job,
+                            match_score=float(match['match_score']),
+                            match_rationale=match['rationale'],
+                            is_bookmarked=False,
+                            is_hidden=False
+                        )
+                        batch_matches.append(job_match)
+                        
+                        # Create notification for high-quality match
+                        notifications.append(
+                            Notification(
                                 user=user,
-                                job=job,
-                                match_score=float(match['match_score']),
-                                match_rationale=match['rationale'],
-                                is_bookmarked=False,
-                                is_hidden=False
+                                notification_type='JOB_MATCH',
+                                title=f'New Job Match: {job.job_title}',
+                                message=f'Found a {match["match_score"]}% match for {job.job_title} at {job.company}',
+                                content_type=ContentType.objects.get_for_model(job),
+                                object_id=job.id
                             )
                         )
                 except (KeyError, TypeError):
                     continue
 
-            # Bulk create matches
+            # Bulk create matches and notifications
             if batch_matches:
-                created_matches = JobMatch.objects.bulk_create(
-                    batch_matches,
-                    ignore_conflicts=True
-                )
-                logger.info(f"Created {len(created_matches)} matches for user {user.email}")
-                return created_matches
-            
-            return []
+                JobMatch.objects.bulk_create(batch_matches, ignore_conflicts=True)
+                Notification.objects.bulk_create(notifications)
                 
+            return batch_matches
+            
         except Exception as e:
             logger.error(f"Error in match_jobs_for_user for {user.email}: {str(e)}")
             return []

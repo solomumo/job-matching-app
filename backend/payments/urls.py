@@ -9,7 +9,8 @@ from .views import (
     CreateSubscriptionView,
     VerifySubscriptionView,
     CancelSubscriptionView,
-    GetSubscriptionView
+    GetSubscriptionView,
+    BillingHistoryView
 )
 
 urlpatterns = [
@@ -23,4 +24,5 @@ urlpatterns = [
     path('verify-subscription/', VerifySubscriptionView.as_view(), name='verify-subscription'),
     path('cancel-subscription/', CancelSubscriptionView.as_view(), name='cancel-subscription'),
     path('get-subscription/', GetSubscriptionView.as_view(), name='get-subscription'),
+    path('billing-history/', BillingHistoryView.as_view(), name='billing-history'),
 ]

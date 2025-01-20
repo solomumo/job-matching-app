@@ -2,84 +2,85 @@ from docx import Document
 from fpdf import FPDF
 import os
 import json
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 class CVGenerator:
     @staticmethod
     def generate_ats_docx(cv_data, output_path=None):
         doc = Document()
 
-        # Add Name and Contact Info
-        doc.add_heading(cv_data['name'], level=1)
-        
-        # Format contact info properly
-        contact_info = cv_data['contact_info']
-        if isinstance(contact_info, dict):
-            contact_lines = []
-            if contact_info.get('email'):
-                contact_lines.append(f"Email: {contact_info['email']}")
-            if contact_info.get('phone_number'):
-                contact_lines.append(f"Phone: {contact_info['phone_number']}")
-            if contact_info.get('location'):
-                contact_lines.append(f"Location: {contact_info['location']}")
-            if contact_info.get('linkedin'):
-                contact_lines.append(f"LinkedIn: {contact_info['linkedin']}")
-            doc.add_paragraph('\n'.join(contact_lines))
-        else:
-            # If it's a string, try to parse it as JSON first
-            try:
-                contact_dict = json.loads(contact_info)
-                contact_lines = []
-                if contact_dict.get('email'):
-                    contact_lines.append(f"Email: {contact_dict['email']}")
-                if contact_dict.get('phone_number'):
-                    contact_lines.append(f"Phone: {contact_dict['phone_number']}")
-                if contact_dict.get('location'):
-                    contact_lines.append(f"Location: {contact_dict['location']}")
-                if contact_dict.get('linkedin'):
-                    contact_lines.append(f"LinkedIn: {contact_dict['linkedin']}")
-                doc.add_paragraph('\n'.join(contact_lines))
-            except (json.JSONDecodeError, TypeError):
-                # If parsing fails, use as-is
-                doc.add_paragraph(str(contact_info))
+        # Add Name centered
+        name_heading = doc.add_heading(cv_data['name'], level=1)
+        name_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-        # Add Professional Summary
-        doc.add_heading('Professional Summary', level=2)
+        # Format contact info in one line
+        contact_info = cv_data['contact_info']
+        contact_paragraph = doc.add_paragraph()
+        contact_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        
+        if isinstance(contact_info, dict):
+            contact_parts = []
+            if contact_info.get('phone_number'):
+                contact_parts.append(f"Tel: {contact_info['phone_number']}")
+            if contact_info.get('email'):
+                contact_parts.append(f"Email: {contact_info['email']}")
+            if contact_info.get('location'):
+                contact_parts.append(f"Address: {contact_info['location']}")
+            contact_paragraph.add_run(' | '.join(contact_parts))
+
+        # Add Professional Summary with heading
+        prof_heading = doc.add_heading('PROFESSIONAL PROFILE', level=2)
+        prof_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
         doc.add_paragraph(cv_data['professional_summary'])
 
-        # Add Skills
-        doc.add_heading('Skills', level=2)
-        doc.add_paragraph(', '.join(cv_data['skills']))
+        # Add Skills section
+        skills_heading = doc.add_heading('SKILLS', level=2)
+        skills_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        # Format skills with vertical bars
+        skills_text = ' | '.join(cv_data['skills'])
+        doc.add_paragraph(skills_text)
 
-        # Add Experience
-        doc.add_heading('Experience', level=2)
+        # Add Key Achievements
+        if cv_data.get('key_achievements'):
+            achieve_heading = doc.add_heading('KEY ACHIEVEMENTS', level=2)
+            achieve_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for achievement in cv_data['key_achievements']:
+                doc.add_paragraph(f"{achievement}", style='List Bullet')
+
+        # Add Experience section
+        exp_heading = doc.add_heading('PROFESSIONAL EXPERIENCE', level=2)
+        exp_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
         for job in cv_data['experience']:
-            doc.add_heading(f"{job['job_title']} - {job['company']} ({job['date_range']})", level=3)
-            if job.get('location'):
-                doc.add_paragraph(job['location'])
+            # Add job title and company on one line
+            job_heading = doc.add_paragraph()
+            job_heading.add_run(f"{job['job_title']} | {job['date_range']}").bold = True
+            if job.get('company'):
+                doc.add_paragraph(job['company'])
+            # Add bullet points
             for bullet in job['bullet_points']:
-                doc.add_paragraph(f"• {bullet}", style='List Bullet')
+                doc.add_paragraph(f"{bullet}", style='List Bullet')
 
-        # Add Education
-        doc.add_heading('Education', level=2)
+        # Add Education with centered heading
+        edu_heading = doc.add_heading('EDUCATION', level=2)
+        edu_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
         for edu in cv_data['education']:
             doc.add_paragraph(
                 f"{edu['degree']} - {edu['institution']} ({edu['graduation_year']})"
             )
 
-        # Add Certifications
+        # Add Certifications with centered heading
         if cv_data.get('certifications'):
-            doc.add_heading('Certifications', level=2)
+            cert_heading = doc.add_heading('CERTIFICATIONS', level=2)
+            cert_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
             for cert in cv_data['certifications']:
                 doc.add_paragraph(
                     f"{cert['name']} ({cert['year']}) - {cert['issuing_organization']}"
                 )
 
-        # If output_path is provided, save to file
         if output_path:
             doc.save(output_path)
             return output_path
         
-        # Otherwise return the document object
         return doc
 
     @staticmethod
@@ -111,6 +112,15 @@ class CVGenerator:
         pdf.set_font('DejaVu', '', 12)
         pdf.write_html(f'<p>{", ".join(cv_data["skills"])}</p>')
         pdf.ln(5)
+
+        # Add Key Achievements
+        if cv_data.get('key_achievements'):
+            pdf.set_font('DejaVu', 'B', 14)
+            pdf.write_html('<h2>Key Achievements</h2>')
+            pdf.set_font('DejaVu', '', 12)
+            for achievement in cv_data['key_achievements']:
+                pdf.write_html(f'<p>• {achievement}</p>')
+            pdf.ln(5)
 
         # Add Experience
         pdf.set_font('DejaVu', 'B', 14)

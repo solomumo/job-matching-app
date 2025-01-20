@@ -11,8 +11,13 @@ function SummaryStep({ preferences, isEditing, onCancel, onSave }) {
         <ListItem>
           <ListItemText
             primary="Target Roles"
+            slotProps={{
+              secondary: {
+                component: 'div'
+              }
+            }}
             secondary={
-              <Box sx={{ mt: 1 }}>
+              <Box sx={{mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1}}>
                 {preferences.roles.map((role) => (
                   <Chip key={role} label={role} sx={{ mr: 1, mb: 1 }} />
                 ))}
@@ -23,6 +28,11 @@ function SummaryStep({ preferences, isEditing, onCancel, onSave }) {
         <ListItem>
           <ListItemText
             primary="Years of Experience"
+            slotProps={{
+              secondary: {
+                component: 'div'
+              }
+            }}
             secondary={
               <Box sx={{ mt: 1 }}>
                 <Chip 
@@ -42,6 +52,11 @@ function SummaryStep({ preferences, isEditing, onCancel, onSave }) {
         <ListItem>
           <ListItemText
             primary="Preferred Locations"
+            slotProps={{
+              secondary: {
+                component: 'div'
+              }
+            }}
             secondary={
               <Box sx={{ mt: 1 }}>
                 {preferences.locations.map((location) => (
@@ -54,6 +69,11 @@ function SummaryStep({ preferences, isEditing, onCancel, onSave }) {
         <ListItem>
           <ListItemText
             primary="Key Skills"
+            slotProps={{
+              secondary: {
+                component: 'div'
+              }
+            }}
             secondary={
               <Box sx={{ mt: 1 }}>
                 {preferences.skills.map((skill) => (
@@ -66,6 +86,11 @@ function SummaryStep({ preferences, isEditing, onCancel, onSave }) {
         <ListItem>
           <ListItemText
             primary="Industries"
+            slotProps={{
+              secondary: {
+                component: 'div'
+              }
+            }}
             secondary={
               <Box sx={{ mt: 1 }}>
                 {preferences.industries.map((industry) => (
@@ -78,6 +103,11 @@ function SummaryStep({ preferences, isEditing, onCancel, onSave }) {
         <ListItem>
           <ListItemText
             primary="Remote Work"
+            slotProps={{
+              secondary: {
+                component: 'div'
+              }
+            }}
             secondary={preferences.remote_only ? "Remote only" : "Open to on-site positions"}
           />
         </ListItem>

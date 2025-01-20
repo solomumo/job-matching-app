@@ -2,6 +2,10 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from notifications.models import Notification
+from django.contrib.contenttypes.models import ContentType
 
 User = get_user_model()
 
@@ -10,7 +14,7 @@ class Job(models.Model):
     company = models.CharField(max_length=255)
     location = models.CharField(max_length=255)
     date_posted = models.DateField()
-    job_description = models.TextField()
+    job_description = models.TextField(null=True, blank=True)
     url = models.URLField(unique=True)
     source = models.CharField(max_length=50, choices=[
         ('LINKEDIN', 'LinkedIn'),
@@ -98,37 +102,28 @@ class JobApplication(models.Model):
     STATUS_CHOICES = [
         ('NOT_APPLIED', 'Not Applied'),
         ('APPLIED', 'Applied'),
-        ('INTERVIEW', 'Interview'),
-        ('REJECTED', 'Rejected'),
-        ('ACCEPTED', 'Accepted'),
+        ('SCREENING', 'In Screening'),
+        ('INTERVIEWING', 'Interviewing'),
+        ('TECHNICAL_ROUND', 'Technical Round'),
+        ('OFFER_RECEIVED', 'Offer Received'),
+        ('OFFER_ACCEPTED', 'Offer Accepted'),
+        ('OFFER_DECLINED', 'Offer Declined'),
+        ('REJECTED', 'Application Rejected'),
+        ('GHOSTED', 'No Response'),
     ]
-
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='job_applications'
-    )
-    job = models.ForeignKey(
-        'Job',
-        on_delete=models.CASCADE,
-        related_name='applications'
-    )
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='NOT_APPLIED'
-    )
-    match_score = models.IntegerField(
-        validators=[MinValueValidator(0), MaxValueValidator(100)],
-        null=True,
-        blank=True
-    )
+    
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='job_applications')
+    job = models.ForeignKey('Job', on_delete=models.CASCADE, related_name='applications')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='NOT_APPLIED')
     applied_date = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
+    last_status_change = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    notification_sent = models.BooleanField(default=False)
 
     class Meta:
-        unique_together = ['user', 'job']
+        unique_together = ('user', 'job')
 
     def __str__(self):
         return f"{self.user.email} - {self.job.job_title}"
@@ -169,14 +164,8 @@ class GeneratedCV(models.Model):
         return f"{self.user.email} - {self.job_application.job.job_title}"
 
 class CVAnalysis(models.Model):
-    job_application = models.OneToOneField(
-        JobApplication,
-        on_delete=models.CASCADE,
-        related_name='cv_analysis'
-    )
-    match_score = models.IntegerField(
-        validators=[MinValueValidator(0), MaxValueValidator(100)]
-    )
+    job_application = models.OneToOneField(JobApplication, on_delete=models.CASCADE, related_name='cv_analysis')
+    match_score = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(100)])
     matching_keywords = models.JSONField(default=list)
     missing_keywords = models.JSONField(default=list)
     ats_recommendations = models.JSONField(default=list)
@@ -186,4 +175,16 @@ class CVAnalysis(models.Model):
 
     def __str__(self):
         return f"Analysis for {self.job_application}"
+
+@receiver(post_save, sender=CVAnalysis)
+def create_cv_analysis_notification(sender, instance, created, **kwargs):
+    if created:
+        Notification.objects.create(
+            user=instance.job_application.user,
+            notification_type='CV_ANALYSIS',
+            title='CV Analysis Complete',
+            message=f'Your CV analysis for {instance.job_application.job.job_title} is ready. Match score: {instance.match_score}%',
+            content_type=ContentType.objects.get_for_model(instance),
+            object_id=instance.id
+        )
 

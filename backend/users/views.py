@@ -32,6 +32,7 @@ class LoginUserView(CreateAPIView):
         user = authenticate(email=email, password=password)
         if user:
             refresh = RefreshToken.for_user(user)
+        
             return Response({
                 'token': str(refresh.access_token),
                 'refresh': str(refresh),
@@ -140,56 +141,42 @@ class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        print("\n=== Starting Google Auth Process ===")
-        print(f"Request data: {request.data}")
-        
         token = request.data.get('token')
-        print(f"Extracted token: {token and 'exists' or 'missing'}")
         
         if not token:
-            print("Token missing in request")
             return Response(
                 {'error': 'Token is required'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
-            print("Getting user info from Google")
-            # Use the access token to get user info directly
             userinfo_response = http_requests.get(
                 'https://www.googleapis.com/oauth2/v3/userinfo',
                 headers={'Authorization': f'Bearer {token}'}
             )
             
             if not userinfo_response.ok:
-                print(f"Failed to get user info: {userinfo_response.text}")
                 return Response(
                     {'error': 'Failed to get user info from Google'}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
             userinfo = userinfo_response.json()
-            print(f"User info received: {userinfo}")
-
             email = userinfo.get('email')
             name = userinfo.get('name', '')
             
             if not email:
-                print("No email in user info")
                 return Response(
                     {'error': 'Email not provided by Google'}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            print(f"Creating/getting user with email: {email}")
             user, created = User.objects.get_or_create(
                 email=email,
                 defaults={'name': name}
             )
-            print(f"User {'created' if created else 'retrieved'} with email: {email}")
 
             refresh = RefreshToken.for_user(user)
-            print("JWT tokens generated successfully")
             
             return Response({
                 'token': str(refresh.access_token),
@@ -198,10 +185,6 @@ class GoogleAuthView(APIView):
             })
 
         except Exception as e:
-            print(f"Unexpected error: {str(e)}")
-            print(f"Error type: {type(e)}")
-            import traceback
-            print(f"Traceback: {traceback.format_exc()}")
             return Response(
                 {'error': f'Authentication failed: {str(e)}'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

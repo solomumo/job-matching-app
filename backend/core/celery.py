@@ -67,7 +67,14 @@ app.conf.beat_schedule = {
                 'interval_max': 180,
             }
         }
-    }
+    },
+    
+    'check-stale-applications': {
+        'task': 'notifications.tasks.check_stale_applications',
+        'schedule': crontab(hour=9, minute=0),  # Run daily at 9 AM
+        'options': {'expires': 3600}
+    },
+    
 }
 
 # Configure Celery settings

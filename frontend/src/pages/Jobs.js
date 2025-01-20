@@ -17,7 +17,8 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Switch
 } from '@mui/material';
 import { 
   Work, 
@@ -52,16 +53,13 @@ const Jobs = () => {
         
         // Debug auth token
         const token = localStorage.getItem('token');
-        console.log('Auth token present:', !!token);
         
         // Combine default headers with auth token
         const headers = {
           ...api.defaults.headers,
           'Authorization': `Bearer ${token}`,
         };
-        
-        console.log('Request headers:', headers);
-        
+                
         const response = await api.get('/api/jobs/matches/', {
           headers,
           params: {
@@ -70,8 +68,6 @@ const Jobs = () => {
           }
         });
         
-        // Debug response
-        console.log('API Response:', response.data);
         setJobs(response.data);
         setError(null);
       } catch (error) {
@@ -258,7 +254,7 @@ const Jobs = () => {
                   />
                 )}
 
-                <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
                   <Button 
                     variant="contained" 
                     color="primary"
@@ -278,6 +274,30 @@ const Jobs = () => {
                   >
                     Get CV
                   </Button>
+                  
+                  <Tooltip title={jobMatch.is_applied ? "Marked as Applied" : "Mark as Applied"}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Switch
+                        size="small"
+                        checked={jobMatch.is_applied}
+                        onChange={async () => {
+                          try {
+                            const response = await api.post(`/api/jobs/${jobMatch.job.id}/mark-applied/`);
+                            setJobs(jobs.map(item => 
+                              item.id === jobMatch.id 
+                                ? { ...item, is_applied: response.data.is_applied } 
+                                : item
+                            ));
+                          } catch (error) {
+                            console.error('Error marking job as applied:', error);
+                          }
+                        }}
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        Applied
+                      </Typography>
+                    </Box>
+                  </Tooltip>
                   
                   <IconButton 
                     size="small"

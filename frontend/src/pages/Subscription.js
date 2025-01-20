@@ -33,14 +33,13 @@ const Subscription = () => {
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState(null);
   const [billingHistory, setBillingHistory] = useState([]);
-  const [paymentMethod, setPaymentMethod] = useState(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [error, setError] = useState('');
 
   // Fetch subscription details
   const fetchSubscriptionDetails = useCallback(async () => {
     try {
-      const response = await api.get('/api/auth/subscription/', {
+      const response = await api.get('/api/payments/get-subscription/', {
         headers: {
           ...api.defaults.headers,
           'Authorization': `Bearer ${tokens?.access}`,
@@ -52,10 +51,11 @@ const Subscription = () => {
         return;
       }
       
+      
       setSubscription(response.data);
     } catch (err) {
       setError('Failed to load subscription details');
-      console.error(err);
+      console.error('Subscription fetch error:', err);
       navigate('/plans');
     }
   }, [tokens?.access, navigate]);
@@ -65,28 +65,13 @@ const Subscription = () => {
     try {
       const response = await api.get('/api/payments/billing-history/', {
         headers: {
-          Authorization: `Bearer ${tokens?.access}`
+          ...api.defaults.headers,
+          'Authorization': `Bearer ${tokens?.access}`
         }
       });
       setBillingHistory(response.data);
     } catch (err) {
-      console.error(err);
-    }
-  }, [tokens?.access]);
-
-  // Fetch payment method
-  const fetchPaymentMethod = useCallback(async () => {
-    try {
-      const response = await api.get('/api/payments/payment-method/', {
-        headers: {
-          Authorization: `Bearer ${tokens?.access}`
-        }
-      });
-      setPaymentMethod(response.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+      console.error('Billing history error:', err);
     }
   }, [tokens?.access]);
 
@@ -98,10 +83,9 @@ const Subscription = () => {
 
     Promise.all([
       fetchSubscriptionDetails(),
-      fetchBillingHistory(),
-      fetchPaymentMethod()
-    ]);
-  }, [isAuthenticated, navigate, fetchSubscriptionDetails, fetchBillingHistory, fetchPaymentMethod]);
+      fetchBillingHistory()
+    ]).finally(() => setLoading(false));
+  }, [isAuthenticated, navigate, fetchSubscriptionDetails, fetchBillingHistory]);
 
   const handleCancelSubscription = async () => {
     try {
@@ -128,6 +112,34 @@ const Subscription = () => {
       default:
         return 'default';
     }
+  };
+
+  // Add this function to handle plan change navigation
+  const handleChangePlan = () => {
+    navigate('/plans', { 
+      state: { 
+        currentPlan: subscription?.plan,
+        currentBillingCycle: subscription?.billing_cycle
+      }
+    });
+  };
+
+  // Add this helper function to calculate the amount
+  const getSubscriptionAmount = (subscription) => {
+    if (!subscription) return 0;
+    
+    // Get frequency based on billing cycle
+    const frequency = {
+      'monthly': 1,
+      'quarterly': 3,
+      'semi-annual': 6
+    }[subscription.billing_cycle] || 1;
+    
+    // Get amount and divide by frequency for monthly figure
+    const amount = subscription.last_payment_amount / frequency;
+    
+    // Format the amount
+    return amount ? parseFloat(amount).toFixed(2) : '0.00';
   };
 
   if (loading) {
@@ -175,14 +187,16 @@ const Subscription = () => {
                 </Box>
                 <Box>
                   <Typography color="text.secondary">Amount</Typography>
-                  <Typography variant="h6">${subscription.amount}/month</Typography>
+                  <Typography variant="h6">
+                    ${getSubscriptionAmount(subscription)}/month
+                  </Typography>
                 </Box>
               </Box>
 
               <Box sx={{ display: 'flex', gap: 2, mt: 4 }}>
                 <Button 
                   variant="contained" 
-                  onClick={() => navigate('/plans')}
+                  onClick={handleChangePlan}
                 >
                   Change Plan
                 </Button>
@@ -199,29 +213,6 @@ const Subscription = () => {
         </CardContent>
       </Card>
 
-      {/* Payment Method */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Typography variant="h6">Payment Method</Typography>
-            <IconButton onClick={() => navigate('/update-payment')}>
-              <EditIcon />
-            </IconButton>
-          </Box>
-
-          {paymentMethod && (
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <Typography>
-                •••• •••• •••• {paymentMethod.last4}
-              </Typography>
-              <Typography color="text.secondary">
-                Expires {paymentMethod.exp_month}/{paymentMethod.exp_year}
-              </Typography>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Billing History */}
       <Card>
         <CardContent>
@@ -233,8 +224,8 @@ const Subscription = () => {
                 <TableRow>
                   <TableCell>Date</TableCell>
                   <TableCell>Amount</TableCell>
+                  <TableCell>Billing Cycle</TableCell>
                   <TableCell>Status</TableCell>
-                  <TableCell>Receipt</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -244,22 +235,13 @@ const Subscription = () => {
                       {new Date(bill.date).toLocaleDateString()}
                     </TableCell>
                     <TableCell>${bill.amount}</TableCell>
+                    <TableCell>{bill.billing_cycle}</TableCell>
                     <TableCell>
                       <Chip 
                         label={bill.status} 
                         color={getStatusChipColor(bill.status)}
                         size="small"
                       />
-                    </TableCell>
-                    <TableCell>
-                      <Tooltip title="Download Receipt">
-                        <IconButton 
-                          size="small"
-                          onClick={() => window.open(bill.receipt_url, '_blank')}
-                        >
-                          <DownloadIcon />
-                        </IconButton>
-                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 ))}

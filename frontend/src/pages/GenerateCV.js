@@ -106,6 +106,16 @@ const GenerateCV = () => {
   const [error, setError] = useState('');
   const [isEditing, setIsEditing] = useState(false);
 
+  // Add debug logging
+  useEffect(() => {
+    console.log('Location state:', {
+      cvText: cvText?.substring(0, 100),  // First 100 chars
+      jobDescription: jobDescription?.substring(0, 100),
+      analysis: analysis,
+      isRegenerating
+    });
+  }, [cvText, jobDescription, analysis, isRegenerating]);
+
   const fetchLatestCV = async () => {
     try {
       const response = await api.get(`/api/jobs/${id}/generate-cv/`);
@@ -130,15 +140,11 @@ const GenerateCV = () => {
     const initializeCV = async () => {
       setIsLoading(true);
       try {
-        if (isRegenerating) {
-          // Check if CV exists first
-          const hasExistingCV = await fetchLatestCV();
-          if (hasExistingCV) {
-            // If CV exists and we're regenerating, generate new version
-            await handleGenerateCV();
-          }
+        // If we have cvText and jobDescription, generate new CV
+        if (cvText && jobDescription) {
+          await handleGenerateCV();
         } else {
-          // Just fetch the latest CV
+          // Otherwise try to fetch existing CV
           await fetchLatestCV();
         }
       } finally {
@@ -147,23 +153,41 @@ const GenerateCV = () => {
     };
 
     initializeCV();
-  }, [id]);
+  }, [id, cvText, jobDescription]);
 
   const handleGenerateCV = async () => {
     setIsGenerating(true);
     setError('');
 
     try {
-      const response = await api.post(`/api/jobs/${id}/generate-cv/`, {
-        cvText,
-        jobDescription
+      // Add debug logging
+      console.log('Generating CV with:', {
+        cv: cvText?.substring(0, 100),
+        jobDescription: jobDescription?.substring(0, 100)
       });
+
+      if (!cvText || !jobDescription) {
+        throw new Error('Missing CV text or job description');
+      }
+
+      const response = await api.post(`/api/jobs/${id}/generate-cv/`, {
+        cv: cvText,
+        jobDescription: jobDescription  
+      });
+      
+      console.log('Generation response:', response.data);
       
       setGeneratedCV(response.data);
       setEditedCVText(formatCVText(response.data.generated_cv_text));
     } catch (err) {
-      setError('Failed to generate CV');
-      console.error(err);
+      console.error('Generation error:', err.response?.data || err);
+      if (err.response?.status === 400) {
+        setError('Please analyze your CV first before generating');
+      } else if (err.message === 'Missing CV text or job description') {
+        setError('Missing CV text or job description');
+      } else {
+        setError('Failed to generate CV');
+      }
     } finally {
       setIsGenerating(false);
     }

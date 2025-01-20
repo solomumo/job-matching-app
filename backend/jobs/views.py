@@ -18,6 +18,8 @@ import io
 from services.cv_generator import CVGenerator
 from django.conf import settings
 import logging
+from rest_framework.views import APIView
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +72,16 @@ def toggle_bookmark(request, job_id):
 def analyze_job(request, job_id):
     try:
         job = Job.objects.get(id=job_id)
-        cv_text = request.data.get('cv')
+        cv_text = request.data.get('cv')  # Matches frontend's 'cv' field name
         job_description = request.data.get('jobDescription')
 
+        print(f"\n=== Analyze Job Debug ===")
+        print(f"Job ID: {job_id}")
+        print(f"CV Text present: {bool(cv_text)}")
+        print(f"Job Description present: {bool(job_description)}")
+
         if not cv_text or not job_description:
+            logger.error(f"Missing data - CV: {bool(cv_text)}, Job Description: {bool(job_description)}")
             return Response(
                 {'error': 'Both CV and job description are required'}, 
                 status=status.HTTP_400_BAD_REQUEST
@@ -85,7 +93,8 @@ def analyze_job(request, job_id):
                 ai_service.analyze_match(cv_text, job_description)
             )
 
-            job_analysis, _ = JobAnalysis.objects.update_or_create(
+            # Create or update the JobAnalysis
+            job_analysis, created = JobAnalysis.objects.update_or_create(
                 job=job,
                 user=request.user,
                 defaults={
@@ -100,23 +109,47 @@ def analyze_job(request, job_id):
                 }
             )
 
+            # Create or update the CVAnalysis for the job application
+            job_application, _ = JobApplication.objects.get_or_create(
+                job=job,
+                user=request.user,
+                defaults={'status': 'NOT_APPLIED'}
+            )
+
+            cv_analysis, created = CVAnalysis.objects.update_or_create(
+                job_application=job_application,
+                defaults={
+                    'match_score': analysis_result['match_score'],
+                    'matching_keywords': analysis_result['keyword_analysis']['matching'],
+                    'missing_keywords': analysis_result['keyword_analysis']['missing'],
+                    'ats_recommendations': analysis_result['ats_issues'],
+                    'skill_matches': analysis_result['skills_analysis']
+                }
+            )
+
+            print(f"JobAnalysis ID: {job_analysis.id}, CVAnalysis ID: {cv_analysis.id}")
             return Response({
                 'analysis_id': job_analysis.id,
                 **analysis_result
             })
 
         except Exception as ai_error:
+            print(f"AI Analysis error: {str(ai_error)}")
+            logger.error(f"AI Analysis failed for job {job_id}: {str(ai_error)}")
             return Response(
                 {'error': f'AI Analysis failed: {str(ai_error)}'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     except Job.DoesNotExist:
+        logger.error(f"Job {job_id} not found")
         return Response(
             {'error': 'Job not found'}, 
             status=status.HTTP_404_NOT_FOUND
         )
     except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        logger.error(f"Unexpected error analyzing job {job_id}: {str(e)}")
         return Response(
             {'error': f'Unexpected error: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -217,19 +250,19 @@ def analyze_cv(request, job_id):
 def generate_cv(request, job_id):
     try:
         # Get or create job application
-        job_application, _ = JobApplication.objects.get_or_create(
+        job_application, created = JobApplication.objects.get_or_create(
             job_id=job_id,
             user=request.user,
             defaults={'status': 'NOT_APPLIED'}
         )
-
+        print(f"Job Application: {job_application.id} (Created: {created})")
         if request.method == 'GET':
             try:
                 # Get the latest GeneratedCV
                 generated_cv = GeneratedCV.objects.filter(
                     job_application=job_application,
                     user=request.user
-                ).latest('created_at')  # Get the most recent one
+                ).latest('created_at') 
                 
                 return Response(GeneratedCVSerializer(generated_cv).data)
             except GeneratedCV.DoesNotExist:
@@ -239,10 +272,13 @@ def generate_cv(request, job_id):
                 )
 
         elif request.method == 'POST':
+            print
             try:
-                cv_analysis = CVAnalysis.objects.get(
+                analyses = CVAnalysis.objects.filter(job_application=job_application)
+                print(f"Found {analyses.count()} CV analyses for this application")
+                cv_analysis = CVAnalysis.objects.filter(
                     job_application=job_application
-                )
+                ).latest('created_at')
             except CVAnalysis.DoesNotExist:
                 return Response(
                     {'error': 'Please analyze your CV first'},
@@ -257,7 +293,7 @@ def generate_cv(request, job_id):
             
             # Generate optimized CV
             optimized_cv = ai_service.optimize_cv_with_openai(
-                parsed_cv=request.data.get('cvText', ''),
+                parsed_cv=request.data.get('cv', ''),
                 job_description=request.data.get('jobDescription', ''),
                 analysis=cv_analysis
             )
@@ -306,26 +342,44 @@ def generate_cv(request, job_id):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def update_application_status(request, application_id):
+def update_application_status(request, job_id):
     try:
-        application = JobApplication.objects.get(
-            pk=application_id,
-            user=request.user
+        application, created = JobApplication.objects.get_or_create(
+            job_id=job_id,
+            user=request.user,
+            defaults={'status': 'NOT_APPLIED'}
         )
         
         new_status = request.data.get('status')
-        if new_status == 'APPLIED':
+        if new_status == 'APPLIED' and application.status == 'NOT_APPLIED':
             application.applied_date = timezone.now()
-        
+            
         application.status = new_status
         application.save()
-
+        
         return Response(JobApplicationSerializer(application).data)
-
-    except JobApplication.DoesNotExist:
+    except Exception as e:
         return Response(
-            {'error': 'Application not found'},
-            status=status.HTTP_404_NOT_FOUND
+            {'error': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_applications(request):
+    """Get all applications for the user with detailed information"""
+    try:
+        applications = JobApplication.objects.filter(
+            user=request.user
+        ).select_related('job').order_by('-updated_at')
+        
+        serializer = JobApplicationSerializer(applications, many=True)
+        return Response(serializer.data)
+    except Exception as e:
+        logger.error(f"Error in get_applications: {str(e)}", exc_info=True)
+        return Response(
+            {'error': f'Error fetching applications: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 @api_view(['GET'])
@@ -421,16 +475,14 @@ def get_matched_jobs(request):
         show_hidden = request.query_params.get('show_hidden', 'false').lower() == 'true'
         sort_by = request.query_params.get('sort_by', 'date_posted')
         
-        # Get jobs through JobMatch model
         matches = JobMatch.objects.filter(
             user=request.user,
-            match_score__gte=75  # Minimum match threshold
+            match_score__gte=75
         ).select_related('job')
         
         if not show_hidden:
             matches = matches.filter(is_hidden=False)
             
-        # Sort the matches
         if sort_by == 'date_posted':
             matches = matches.order_by('-job__date_posted')
         elif sort_by == 'match_score':
@@ -438,12 +490,110 @@ def get_matched_jobs(request):
             
         logger.info(f"Found {matches.count()} matched jobs for user")
 
-        serializer = JobMatchSerializer(matches, many=True)
+        serializer = JobMatchSerializer(matches, many=True, context={'request': request})
         return Response(serializer.data)
 
     except Exception as e:
         logger.error(f"Error in get_matched_jobs: {str(e)}", exc_info=True)
         return Response(
             {'error': f'Error fetching matched jobs: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_job_applied(request, job_id):
+    """Simple endpoint to mark a job as applied"""
+    try:
+        application, created = JobApplication.objects.get_or_create(
+            job_id=job_id,
+            user=request.user,
+            defaults={
+                'status': 'NOT_APPLIED',
+                'applied_date': None
+            }
+        )
+        
+        # Toggle the applied status
+        if application.status == 'NOT_APPLIED':
+            application.status = 'APPLIED'
+            application.applied_date = timezone.now()
+        else:
+            application.status = 'NOT_APPLIED'
+            application.applied_date = None
+            
+        application.save()
+        
+        return Response({
+            'is_applied': application.status == 'APPLIED',
+            'application_id': application.id,
+            'status': application.status
+        })
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_application_status(request, application_id):
+    """Update the status of an existing application"""
+    try:
+        application = JobApplication.objects.get(
+            id=application_id,
+            user=request.user
+        )
+        
+        new_status = request.data.get('status')
+        if not new_status:
+            return Response(
+                {'error': 'Status is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        application.status = new_status
+        application.save()
+        
+        return Response(JobApplicationSerializer(application).data)
+    except JobApplication.DoesNotExist:
+        return Response(
+            {'error': 'Application not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_job_analysis(request, job_id):
+    try:
+        job = Job.objects.get(id=job_id)
+        analysis = JobAnalysis.objects.get(job=job, user=request.user)
+        
+        return Response({
+            'match_score': analysis.match_score,
+            'keyword_analysis': analysis.keyword_analysis,
+            'skills_analysis': analysis.skills_analysis,
+            'experience_match': analysis.experience_match,
+            'ats_issues': analysis.ats_issues,
+            'recommendations': analysis.recommendations
+        })
+    except Job.DoesNotExist:
+        return Response(
+            {'error': 'Job not found'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except JobAnalysis.DoesNotExist:
+        return Response(
+            {'error': 'Analysis not found'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {'error': f'Unexpected error: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from .config import SUBSCRIPTION_PLANS
+from .constants import PLAN_LIMITS, SUBSCRIPTION_PLANS
 
 User = get_user_model()
 
@@ -27,13 +27,11 @@ class Subscription(models.Model):
     next_billing_date = models.DateTimeField()
     trial_ends_at = models.DateTimeField(null=True, blank=True)
     
-    # Add usage tracking
-    recommendations_used = models.IntegerField(default=0)
-    cv_customizations_used = models.IntegerField(default=0)
-    
     # Add payment history reference
     last_payment_date = models.DateTimeField(null=True)
     last_payment_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True)
+
+    notification_sent = models.BooleanField(default=False)
     
     def __str__(self):
         status = "Active" if self.is_valid() else "Inactive"
@@ -42,12 +40,6 @@ class Subscription(models.Model):
     def is_valid(self):
         return self.is_active and self.end_date > timezone.now()
     
-    def reset_usage_counters(self):
-        """Reset usage counters at the start of new billing cycle"""
-        self.recommendations_used = 0
-        self.cv_customizations_used = 0
-        self.save()
-
 class PromoCode(models.Model):
     STATUS_CHOICES = [
         ('active', 'Active'),

@@ -38,9 +38,9 @@ class BaseScraper:
                     time.sleep(success_wait)
                     return BeautifulSoup(response.content, 'html.parser')
                     
-                elif response.status_code == 429:
+                elif response.status_code in [429, 403, 451]:
                     logger.warning("Received 429 Too Many Requests.")
-                    while response.status_code == 429:
+                    while response.status_code in [429, 403, 451]:
                         error_wait = random.randint(3, 5)
                         time.sleep(error_wait)
                         response = requests.get(
@@ -201,7 +201,7 @@ class LinkedInScraper(BaseScraper):
                     encoded_location = quote(location)
                     
                     # Paginate through results
-                    for i in range(25):
+                    for i in range(10):
                         url = (
                             f"{self.base_url}?"
                             f"keywords={encoded_keyword}&"
@@ -481,7 +481,7 @@ class ReliefWebScraper(BaseScraper):
                         'company': fields.get('source', [{}])[0].get('name', 'Unknown'),
                         'location': ', '.join([country.get('name') for country in fields.get('country', [])]),
                         'date_posted': datetime.fromisoformat(fields.get('date', {}).get('created', '')).date(),
-                        'job_description': fields.get('body'),
+                        'job_description': fields.get('body', ''),
                         'url': fields.get('url'),
                         'source': self.source
                     }

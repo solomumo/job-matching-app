@@ -93,40 +93,38 @@ class OpenAIService:
                 }, {
                     "role": "user",
                     "content": f"""
-                    Revamp the following CV to match the given job description. Return the response as a structured JSON object with the following fields:
-                    - name: The user's full name.
-                    - contact_info: Email, phone number, and location.
-                    - professional_summary: A concise summary tailored to the job description.
-                    - skills: A list of skills, including the missing skills from the analysis.
-                    - experience: A list of jobs, each as an object with the following fields:
+                    Revamp the following CV: {parsed_cv} to match the given job description: {job_description}. Return the response as a structured JSON object with the following fields:
+                    - name: The user's full name from the {parsed_cv}.
+                    - contact_info: Email, phone number, and location from the {parsed_cv}.
+                    - professional_summary: A concise summary tailored to the job description using information from the {parsed_cv}.
+                    - skills: A list of key skills of the candidate, including the {missing_skills} from the analysis as well as {missing_keywords}.
+                    - key_achievements: A list of 4-5 key achievements/responsibilities from the entire CV in bullet points, highlighting the most relevant ones and including both the {missing_keywords} and {missing_skills}.
+                    - experience: A list of jobs from the {parsed_cv}, each as an object with the following fields:
                       - job_title
                       - company
                       - date_range
                       - location (if available)
-                      - bullet_points: A list of achievements/responsibilities formatted as bullet points.
-                    - education: A list of degrees, each as an object with the following fields:
+                      - bullet_points: A list of achievements/responsibilities formatted as bullet points seamlessly integrating {missing_keywords} and {missing_skills}.
+                    - education: A list of degrees from the {parsed_cv}, each as an object with the following fields:
                       - degree
                       - institution
                       - graduation_year
-                    - certifications: A list of certifications, each as an object with the following fields:
+                    - certifications: A list of certifications from the {parsed_cv} (if available), each as an object with the following fields:
                       - name
                       - issuing_organization
                       - year
 
                     Consider the following:
-                    - Include missing keywords: {', '.join(missing_keywords)}.
-                    - Include missing skills: {', '.join(missing_skills)}.
+                    - Ensure that the optimized CV is a perfect match for the {job_description}
+                    - Include missing keywords: {', '.join(missing_keywords)}. These should be appear at least 2 times throughout the CV, and should be in the professional summary and key achievements as well as the experience section and naturally integrated.
+                    - Include missing skills: {', '.join(missing_skills)}. These should be appear at least 2 times throughout the CV, and should be in the professional summary and key achievements as well as the experience section and naturally integrated.
                     - The output must be structured and easy to use programmatically.
-
-                    Parsed CV:
-                    {parsed_cv}
-
-                    Job Description:
-                    {job_description}
+                    - The output should use simple and natural language and be easy to understand.
+                    - The output bullet points should follow the action and impact format with enough detail (e.g., "Collaborated with X to do Y, which resulted in a 20% increase in efficiency" or "Led the development of Z, resulting in a 20% increase in efficiency").
+                    - The number of bullet points should be limited to 5-7 per job experience, ensuring that each bullet point carries significant weight and adds direct value to the {job_description}.
                     """
                 }],
-                temperature=0.2,
-                max_tokens=2000
+                temperature=0.3
             )
             
             content = response.choices[0].message.content.strip()

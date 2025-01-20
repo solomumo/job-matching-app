@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGoogleLogin } from '@react-oauth/google';
+import authApi from '../services/authApi';
+import api from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -110,8 +112,6 @@ export const AuthProvider = ({ children }) => {
   const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
-        console.log('Google token response:', tokenResponse);
-        
         const res = await fetch('http://localhost:8000/api/auth/google/', {
           method: 'POST',
           headers: {
@@ -122,9 +122,7 @@ export const AuthProvider = ({ children }) => {
           }),
         });
 
-        console.log('Response status:', res.status);
         const data = await res.json();
-        console.log('Backend response:', data);
         
         if (res.ok) {
           login(data.user, {
@@ -137,19 +135,15 @@ export const AuthProvider = ({ children }) => {
           throw new Error(data.error || 'Google authentication failed');
         }
       } catch (error) {
-        console.error('Authentication error:', {
-          message: error.message,
-          fullError: error
-        });
         setError(error.message);
       }
     },
     onError: (error) => {
-      console.error('Google Login Failed:', error);
       setError('Google authentication failed');
     },
     scope: 'email profile',
-    flow: 'implicit'
+    flow: 'implicit',
+    popup: true
   });
 
   return (
