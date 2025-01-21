@@ -21,7 +21,10 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel
+  InputLabel,
+  Stack,
+  Container,
+  Divider
 } from '@mui/material';
 import api from '../services/api';
 import EditIcon from '@mui/icons-material/Edit';
@@ -96,6 +99,28 @@ const Applications = () => {
     return new Date(dateString).toLocaleDateString();
   };
 
+  const getFilteredApplications = useCallback(() => {
+    // First filter out NOT_APPLIED status for all views
+    const validApplications = applications.filter(app => app.status !== 'NOT_APPLIED');
+    
+    switch (activeTab) {
+      case 1: // Active
+        return validApplications.filter(app => 
+          !['REJECTED', 'GHOSTED', 'OFFER_DECLINED'].includes(app.status)
+        );
+      case 2: // Offers
+        return validApplications.filter(app => 
+          ['OFFER_RECEIVED', 'OFFER_ACCEPTED', 'OFFER_DECLINED'].includes(app.status)
+        );
+      case 3: // Rejected
+        return validApplications.filter(app => 
+          ['REJECTED', 'GHOSTED'].includes(app.status)
+        );
+      default: // All (excluding NOT_APPLIED)
+        return validApplications;
+    }
+  }, [activeTab, applications]);
+
   useEffect(() => {
     const fetchApplications = async () => {
       try {
@@ -125,14 +150,52 @@ const Applications = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        My Applications
-      </Typography>
+      <Box sx={{ p: 3, mt: 2 }}>
+      {/* Updated header section with new gradient */}
+      {/* <Box sx={{ mb: 4 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Box>
+            <Typography 
+              variant="h4" 
+              sx={{ 
+                fontWeight: 700,
+                background: 'linear-gradient(45deg, #6b59cc 30%, #8b7ae0 90%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                color: 'transparent',
+                mb: 1,
+                letterSpacing: '-0.02em'
+              }}
+            >
+              My Applications
+            </Typography>
+            <Typography 
+              variant="body1" 
+              sx={{ 
+                color: 'text.secondary',
+                fontSize: '1.1rem'
+              }}
+            >
+              Track and manage your job applications
+            </Typography>
+          </Box>
+        </Stack>
+      </Box> */}
       
       {/* Status filters */}
       <Box sx={{ mb: 3 }}>
-        <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>
+        <Tabs 
+          value={activeTab} 
+          onChange={(e, v) => setActiveTab(v)}
+          sx={{
+            '& .MuiTabs-indicator': {
+              backgroundColor: '#6b59cc',
+            },
+            '& .Mui-selected': {
+              color: '#6b59cc !important',
+            },
+          }}
+        >
           <Tab label="All" />
           <Tab label="Active" />
           <Tab label="Offers" />
@@ -154,7 +217,7 @@ const Applications = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {applications.map((app) => (
+            {getFilteredApplications().map((app) => (
               <TableRow key={app.id}>
                 <TableCell>{app.job.job_title}</TableCell>
                 <TableCell>{app.job.company}</TableCell>

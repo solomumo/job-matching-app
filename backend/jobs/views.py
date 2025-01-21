@@ -117,6 +117,7 @@ def analyze_job(request, job_id):
             )
 
             cv_analysis, created = CVAnalysis.objects.update_or_create(
+                user=request.user,
                 job_application=job_application,
                 defaults={
                     'match_score': analysis_result['match_score'],
@@ -224,6 +225,7 @@ def analyze_cv(request, job_id):
 
         # Save analysis results
         cv_analysis = CVAnalysis.objects.create(
+            user=request.user,
             job_application=job_application,
             match_score=analysis_result['match_score'],
             matching_keywords=analysis_result['matching_keywords'],
@@ -249,13 +251,12 @@ def analyze_cv(request, job_id):
 @permission_classes([IsAuthenticated])
 def generate_cv(request, job_id):
     try:
-        # Get or create job application
         job_application, created = JobApplication.objects.get_or_create(
             job_id=job_id,
             user=request.user,
             defaults={'status': 'NOT_APPLIED'}
         )
-        print(f"Job Application: {job_application.id} (Created: {created})")
+
         if request.method == 'GET':
             try:
                 # Get the latest GeneratedCV
@@ -272,48 +273,56 @@ def generate_cv(request, job_id):
                 )
 
         elif request.method == 'POST':
-            print
             try:
-                analyses = CVAnalysis.objects.filter(job_application=job_application)
-                print(f"Found {analyses.count()} CV analyses for this application")
-                cv_analysis = CVAnalysis.objects.filter(
-                    job_application=job_application
+                # Get the latest JobAnalysis 
+                job_analysis = JobAnalysis.objects.filter(
+                    user=request.user,
+                    job_id=job_id
                 ).latest('created_at')
-            except CVAnalysis.DoesNotExist:
+
+                if not job_analysis:
+                    return Response(
+                        {'error': 'Please analyze your CV first'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # Get default ATS template
+                template = CVTemplate.objects.filter(is_ats_optimized=True).first()
+                
+                # Initialize OpenAI service
+                ai_service = OpenAIService()
+                
+                # Generate optimized CV using data from JobAnalysis
+                optimized_cv = ai_service.optimize_cv_with_openai(
+                    parsed_cv=job_analysis.cv_text,
+                    job_description=job_analysis.job_description,
+                    analysis=job_analysis
+                )
+                    #                 'matching_keywords': analysis_result['keyword_analysis']['matching'],
+                    # 'missing_keywords': analysis_result['keyword_analysis']['missing'],
+
+                if not optimized_cv:
+                    return Response(
+                        {'error': 'Failed to generate optimized CV'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+
+                # Create new GeneratedCV
+                generated_cv = GeneratedCV.objects.create(
+                    user=request.user,
+                    job_application=job_application,
+                    template=template,
+                    original_cv_text=job_analysis.cv_text,
+                    generated_cv_text=json.dumps(optimized_cv)
+                )
+                
+                return Response(GeneratedCVSerializer(generated_cv).data)
+
+            except JobAnalysis.DoesNotExist:
                 return Response(
                     {'error': 'Please analyze your CV first'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-
-            # Get default ATS template
-            template = CVTemplate.objects.filter(is_ats_optimized=True).first()
-            
-            # Initialize OpenAI service
-            ai_service = OpenAIService()
-            
-            # Generate optimized CV
-            optimized_cv = ai_service.optimize_cv_with_openai(
-                parsed_cv=request.data.get('cv', ''),
-                job_description=request.data.get('jobDescription', ''),
-                analysis=cv_analysis
-            )
-
-            if not optimized_cv:
-                return Response(
-                    {'error': 'Failed to generate optimized CV'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-
-            # Create new GeneratedCV (don't update existing ones)
-            generated_cv = GeneratedCV.objects.create(
-                user=request.user,
-                job_application=job_application,
-                template=template,
-                original_cv_text=request.data.get('cvText', ''),
-                generated_cv_text=json.dumps(optimized_cv)
-            )
-            
-            return Response(GeneratedCVSerializer(generated_cv).data)
 
         elif request.method == 'PUT':
             try:
@@ -390,25 +399,18 @@ def download_cv(request, job_id):
             job_id=job_id,
             user=request.user
         )
-        # Get the latest CV
         generated_cv = GeneratedCV.objects.filter(
             job_application=job_application,
             user=request.user
         ).latest('created_at')
         
-        # Generate DOCX file if it doesn't exist
         if not generated_cv.docx_file:
             cv_data = json.loads(generated_cv.generated_cv_text)
-            # Create relative path within media directory
             relative_path = f'generated_cvs/docx/cv_{job_id}_{request.user.id}.docx'
-            # Create full path
             full_path = os.path.join(settings.MEDIA_ROOT, relative_path)
-            # Ensure directory exists
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
             
-            # Generate the file
             CVGenerator.generate_ats_docx(cv_data, full_path)
-            # Save relative path to model
             generated_cv.docx_file = relative_path
             generated_cv.save()
         
@@ -420,7 +422,7 @@ def download_cv(request, job_id):
         return response
         
     except Exception as e:
-        print(f"Error in download_cv: {str(e)}")  # Add logging
+        logger.error(f"Error in download_cv: {str(e)}", exc_info=True)
         return Response(
             {'error': f'Error generating file: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -575,6 +577,8 @@ def get_job_analysis(request, job_id):
         analysis = JobAnalysis.objects.get(job=job, user=request.user)
         
         return Response({
+            'cv_text': analysis.cv_text,
+            'job_description': analysis.job_description,
             'match_score': analysis.match_score,
             'keyword_analysis': analysis.keyword_analysis,
             'skills_analysis': analysis.skills_analysis,

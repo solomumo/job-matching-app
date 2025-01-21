@@ -25,15 +25,17 @@ import CircularProgress from '@mui/material/CircularProgress';
 import { styled } from '@mui/material/styles';
 
 const getNotificationIcon = (type) => {
+  const iconStyle = { fontSize: 'small', color: '#6b59cc' };
+  
   switch (type) {
     case 'JOB_MATCH':
-      return <WorkIcon fontSize="small" />;
+      return <WorkIcon sx={iconStyle} />;
     case 'APPLICATION_UPDATE':
-      return <DescriptionIcon fontSize="small" />;
+      return <DescriptionIcon sx={iconStyle} />;
     case 'SUBSCRIPTION':
-      return <PaymentIcon fontSize="small" />;
+      return <PaymentIcon sx={iconStyle} />;
     default:
-      return <CampaignIcon fontSize="small" />;
+      return <CampaignIcon sx={iconStyle} />;
   }
 };
 

@@ -50,8 +50,7 @@ class OpenAIService:
                         The match_score should be a number between 0 and 100.
                     """
                 }],
-                temperature=0.2,
-                max_tokens=1500
+                temperature=0.4
             )
             
             content = response.choices[0].message.content.strip()
@@ -83,8 +82,8 @@ class OpenAIService:
 
     def optimize_cv_with_openai(self, parsed_cv, job_description, analysis):
         try:
-            missing_keywords = analysis.missing_keywords if analysis.missing_keywords else []
-            missing_skills = analysis.skill_matches.get('missing_skills', []) if analysis.skill_matches else []
+            missing_keywords = analysis.keyword_analysis.get('missing', [])
+            missing_skills = analysis.skills_analysis.get('missing_skills', [])
             response = self.client.chat.completions.create(
                 model="gpt-4o",
                 messages=[{
@@ -94,8 +93,8 @@ class OpenAIService:
                     "role": "user",
                     "content": f"""
                     Revamp the following CV: {parsed_cv} to match the given job description: {job_description}. Return the response as a structured JSON object with the following fields:
-                    - name: The user's full name from the {parsed_cv}.
-                    - contact_info: Email, phone number, and location from the {parsed_cv}.
+                    - name: The user's full name (call it name) from the {parsed_cv}.
+                    - contact_info: Email (call it email), phone number (call it phone_number), and location (call it location) from the {parsed_cv}.
                     - professional_summary: A concise summary tailored to the job description using information from the {parsed_cv}.
                     - skills: A list of key skills of the candidate, including the {missing_skills} from the analysis as well as {missing_keywords}.
                     - key_achievements: A list of 4-5 key achievements/responsibilities from the entire CV in bullet points, highlighting the most relevant ones and including both the {missing_keywords} and {missing_skills}.
@@ -104,7 +103,7 @@ class OpenAIService:
                       - company
                       - date_range
                       - location (if available)
-                      - bullet_points: A list of achievements/responsibilities formatted as bullet points seamlessly integrating {missing_keywords} and {missing_skills}.
+                      - bullet_points: A list of achievements/responsibilities formatted as bullet points seamlessly integrating {missing_keywords} and {missing_skills} and comprehensively covering the entire experience.
                     - education: A list of degrees from the {parsed_cv}, each as an object with the following fields:
                       - degree
                       - institution

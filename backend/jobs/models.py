@@ -71,22 +71,6 @@ class JobMatch(models.Model):
     def __str__(self):
         return f"{self.user.email} - {self.job.job_title} ({self.match_score}%)"
 
-class JobAnalysis(models.Model):
-    job = models.ForeignKey('Job', on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    cv_text = models.TextField()
-    job_description = models.TextField()
-    match_score = models.FloatField()
-    keyword_analysis = models.JSONField()
-    skills_analysis = models.JSONField()
-    experience_match = models.JSONField()
-    ats_issues = models.JSONField()
-    recommendations = models.JSONField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        unique_together = ('job', 'user')
 
 class CVTemplate(models.Model):
     name = models.CharField(max_length=100)
@@ -164,6 +148,7 @@ class GeneratedCV(models.Model):
         return f"{self.user.email} - {self.job_application.job.job_title}"
 
 class CVAnalysis(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='cv_analysis', null=True, blank=True)
     job_application = models.OneToOneField(JobApplication, on_delete=models.CASCADE, related_name='cv_analysis')
     match_score = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(100)])
     matching_keywords = models.JSONField(default=list)
@@ -175,6 +160,23 @@ class CVAnalysis(models.Model):
 
     def __str__(self):
         return f"Analysis for {self.job_application}"
+
+class JobAnalysis(models.Model):
+    job = models.ForeignKey('Job', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    cv_text = models.TextField()
+    job_description = models.TextField()
+    match_score = models.FloatField()
+    keyword_analysis = models.JSONField()
+    skills_analysis = models.JSONField()
+    experience_match = models.JSONField()
+    ats_issues = models.JSONField()
+    recommendations = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('job', 'user')
 
 @receiver(post_save, sender=CVAnalysis)
 def create_cv_analysis_notification(sender, instance, created, **kwargs):

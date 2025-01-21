@@ -1,20 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   Container,
-  Grid,
   Paper,
   Typography,
   Box,
   Button,
   CircularProgress,
   Alert,
-  TextField,
-  Chip,
 } from '@mui/material';
-import { Description, Download, Edit, Refresh } from '@mui/icons-material';
+import { Download } from '@mui/icons-material';
 import api from '../services/api';
-import { useAuth } from '../context/AuthContext';
 
 const formatCVText = (cvData) => {
   try {
@@ -95,133 +91,44 @@ const formatCVText = (cvData) => {
 
 const GenerateCV = () => {
   const { id } = useParams();
-  const location = useLocation();
-  const { analysis, cvText, jobDescription, isRegenerating } = location.state || {};
-  const { tokens } = useAuth();
-  
+  const [job, setJob] = useState(null);
   const [generatedCV, setGeneratedCV] = useState(null);
-  const [editedCVText, setEditedCVText] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [formattedCV, setFormattedCV] = useState('');
   const [error, setError] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Add debug logging
   useEffect(() => {
-    console.log('Location state:', {
-      cvText: cvText?.substring(0, 100),  // First 100 chars
-      jobDescription: jobDescription?.substring(0, 100),
-      analysis: analysis,
-      isRegenerating
-    });
-  }, [cvText, jobDescription, analysis, isRegenerating]);
-
-  const fetchLatestCV = async () => {
-    try {
-      const response = await api.get(`/api/jobs/${id}/generate-cv/`);
-      if (response.data && response.data.generated_cv_text) {
-        setGeneratedCV(response.data);
-        setEditedCVText(formatCVText(response.data.generated_cv_text));
-        return true; // CV exists
-      }
-      return false; // No CV exists
-    } catch (err) {
-      if (err.response?.status === 404) {
-        return false; // No CV exists
-      }
-      console.error('Error fetching CV:', err);
-      setError('Failed to load CV');
-      return false;
-    }
-  };
-
-  // Fetch existing generated CV on component mount
-  useEffect(() => {
-    const initializeCV = async () => {
+    const fetchData = async () => {
       setIsLoading(true);
       try {
-        // If we have cvText and jobDescription, generate new CV
-        if (cvText && jobDescription) {
-          await handleGenerateCV();
-        } else {
-          // Otherwise try to fetch existing CV
-          await fetchLatestCV();
-        }
+        const jobResponse = await api.get(`/api/jobs/${id}/`);
+        setJob(jobResponse.data);
+
+        const cvResponse = await api.get(`/api/jobs/${id}/generate-cv/`);
+        setGeneratedCV(cvResponse.data);
+        setFormattedCV(formatCVText(cvResponse.data.generated_cv_text));
+      } catch (err) {
+        console.error('Error fetching data:', err);
+        setError('Failed to load CV');
       } finally {
         setIsLoading(false);
       }
     };
 
-    initializeCV();
-  }, [id, cvText, jobDescription]);
-
-  const handleGenerateCV = async () => {
-    setIsGenerating(true);
-    setError('');
-
-    try {
-      // Add debug logging
-      console.log('Generating CV with:', {
-        cv: cvText?.substring(0, 100),
-        jobDescription: jobDescription?.substring(0, 100)
-      });
-
-      if (!cvText || !jobDescription) {
-        throw new Error('Missing CV text or job description');
-      }
-
-      const response = await api.post(`/api/jobs/${id}/generate-cv/`, {
-        cv: cvText,
-        jobDescription: jobDescription  
-      });
-      
-      console.log('Generation response:', response.data);
-      
-      setGeneratedCV(response.data);
-      setEditedCVText(formatCVText(response.data.generated_cv_text));
-    } catch (err) {
-      console.error('Generation error:', err.response?.data || err);
-      if (err.response?.status === 400) {
-        setError('Please analyze your CV first before generating');
-      } else if (err.message === 'Missing CV text or job description') {
-        setError('Missing CV text or job description');
-      } else {
-        setError('Failed to generate CV');
-      }
-    } finally {
-      setIsGenerating(false);
+    if (id) {
+      fetchData();
     }
-  };
-
-  const handleSaveEdits = async () => {
-    try {
-      const response = await api.put(`/api/jobs/${id}/generate-cv/`, {
-        generated_cv_text: editedCVText
-      });
-      setGeneratedCV(response.data);
-      setIsEditing(false);
-      // Fetch latest CV after saving edits
-      await fetchLatestCV();
-    } catch (err) {
-      setError('Failed to save changes');
-      console.error(err);
-    }
-  };
-
-  const handleEditChange = (e) => {
-    setEditedCVText(e.target.value);
-  };
+  }, [id]);
 
   const handleDownload = async () => {
     try {
       const response = await api.get(`/api/jobs/${id}/download-cv/`, {
         responseType: 'blob',
         headers: {
-          'Accept': '*/*'  // Accept any content type
+          'Accept': '*/*'
         }
       });
 
-      // Create blob and download
       const blob = new Blob([response.data], {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
@@ -235,11 +142,11 @@ const GenerateCV = () => {
       window.URL.revokeObjectURL(downloadUrl);
     } catch (err) {
       console.error('Download error:', err);
-      setError('Failed to download CV. Please try again.');
+      setError('Failed to download CV');
     }
   };
 
-  if (isLoading) {
+  if (isLoading || !job) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
         <CircularProgress />
@@ -249,92 +156,123 @@ const GenerateCV = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Typography variant="h4" gutterBottom>
-            Generate ATS-Optimized CV
-          </Typography>
-        </Grid>
+      {/* Job Details Card */}
+      <Paper sx={{ p: 3, mb: 4, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ 
+            width: 48, 
+            height: 48, 
+            borderRadius: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: '#f8f9fa',
+            color: '#6b59cc',
+            fontWeight: 600,
+            fontSize: '1.2rem'
+          }}>
+            {job?.company?.charAt(0)}
+          </Box>
+          
+          <Box>
+            <Typography variant="h6" component="h1" sx={{ fontWeight: 600, color: '#2d3748' }}>
+              {job?.job_title}
+            </Typography>
+            <Typography variant="subtitle2" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 2 }}>
+              <span>{job?.company}</span>
+              <span style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: '#cbd5e0' }} />
+              <span>{job?.location}</span>
+            </Typography>
+          </Box>
+        </Box>
+      </Paper>
 
-        {/* Generate Button - Show only if no CV exists */}
-        {!generatedCV && (
-          <Grid item xs={12}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-              <Button
-                variant="contained"
-                color="primary"
-                size="large"
-                onClick={handleGenerateCV}
-                disabled={isGenerating}
-                startIcon={isGenerating ? <CircularProgress size={24} /> : <Description />}
-              >
-                {isGenerating ? 'Generating...' : 'Generate CV'}
-              </Button>
-            </Box>
-          </Grid>
-        )}
+      {/* Generated CV Display */}
+      {generatedCV && (
+        <Paper sx={{ p: 3, borderRadius: 2 }}>
+          {/* Added CV Header */}
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            mb: 3,
+            pb: 2,
+            borderBottom: '1px solid #edf2f7'
+          }}>
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                color: '#4a5568',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}
+            >
+              <span style={{ 
+                width: 8, 
+                height: 8, 
+                borderRadius: '50%', 
+                backgroundColor: '#6b59cc',
+                display: 'inline-block'
+              }} />
+              ATS-Optimized CV
+            </Typography>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: '#718096',
+                fontSize: '0.875rem'
+              }}
+            >
+              Generated on {new Date(generatedCV.created_at).toLocaleDateString()}
+            </Typography>
+          </Box>
 
-        {/* Generated CV Preview and Edit */}
-        {generatedCV && (
-          <Grid item xs={12}>
-            <Paper sx={{ p: 3, mt: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6">
-                  Your ATS-Optimized CV
-                </Typography>
-                <Button
-                  startIcon={<Edit />}
-                  onClick={() => setIsEditing(!isEditing)}
-                >
-                  {isEditing ? 'Cancel Edit' : 'Edit CV'}
-                </Button>
-              </Box>
+          <Box sx={{ mb: 3 }}>
+            <pre style={{ 
+              whiteSpace: 'pre-wrap', 
+              fontFamily: 'monospace',
+              backgroundColor: '#f8f9fa',
+              padding: '16px',
+              borderRadius: '8px'
+            }}>
+              {formattedCV}
+            </pre>
+          </Box>
 
-              {isEditing ? (
-                <>
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={20}
-                    value={editedCVText}
-                    onChange={handleEditChange}
-                    sx={{ mb: 2, fontFamily: 'monospace' }}
-                  />
-                  <Button
-                    variant="contained"
-                    onClick={handleSaveEdits}
-                    sx={{ mr: 1 }}
-                  >
-                    Save Changes
-                  </Button>
-                </>
-              ) : (
-                <Box sx={{ mb: 3 }}>
-                  <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-                    {editedCVText}
-                  </pre>
-                </Box>
-              )}
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'flex-start', 
+            mt: 4, 
+            pt: 3, 
+            borderTop: '1px solid #edf2f7' 
+          }}>
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<Download />}
+              onClick={handleDownload}
+              sx={{ 
+                bgcolor: '#6b59cc',
+                px: 4,
+                py: 1.5,
+                '&:hover': {
+                  bgcolor: '#5849ac',
+                  boxShadow: '0 6px 16px rgba(107, 89, 204, 0.3)',
+                },
+                boxShadow: '0 4px 12px rgba(107, 89, 204, 0.2)',
+              }}
+            >
+              Download DOCX
+            </Button>
+          </Box>
+        </Paper>
+      )}
 
-              <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-                <Button
-                  variant="contained"
-                  onClick={handleDownload}
-                  startIcon={<Download />}
-                >
-                  Download DOCX
-                </Button>
-              </Box>
-            </Paper>
-          </Grid>
-        )}
-
-        {error && (
-          <Grid item xs={12}>
-            <Alert severity="error">{error}</Alert>
-          </Grid>
-        )}
-      </Grid>
+      {error && (
+        <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>
+      )}
     </Container>
   );
 };

@@ -111,6 +111,33 @@ function SummaryStep({ preferences, isEditing, onCancel, onSave }) {
             secondary={preferences.remote_only ? "Remote only" : "Open to on-site positions"}
           />
         </ListItem>
+        <ListItem>
+          <ListItemText
+            primary="Weekly Applications"
+            slotProps={{
+              secondary: {
+                component: 'div'
+              }
+            }}
+            secondary={
+              <Box sx={{ mt: 1 }}>
+                <Chip 
+                  label={preferences.weekly_applications ? 
+                    `Up to ${preferences.weekly_applications} applications per week` : 
+                    'Not specified'
+                  } 
+                  sx={{ 
+                    mr: 1, 
+                    mb: 1,
+                    bgcolor: '#f5f5f5',
+                    color: '#2c3035',
+                    fontWeight: 500,
+                  }} 
+                />
+              </Box>
+            }
+          />
+        </ListItem>
       </List>
 
       {isEditing && (

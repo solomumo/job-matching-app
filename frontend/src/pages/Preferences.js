@@ -27,6 +27,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Grid2 from '@mui/material/Grid2';
 import YearsOfExperienceStep from '../components/preferences/YearsOfExperienceStep';
+import WeeklyApplicationsStep from '../components/preferences/WeeklyApplicationsStep';
 
 const steps = [
   { label: 'Target Roles', sublabel: 'Roles', required: ['roles'] },
@@ -34,6 +35,7 @@ const steps = [
   { label: 'Preferred Locations', sublabel: 'Locations', required: ['locations'] },
   { label: 'Key Skills', sublabel: 'Skills', required: ['skills'] },
   { label: 'Industries', sublabel: 'Industries', required: ['industries'] },
+  { label: 'Weekly Applications', sublabel: 'Applications', required: ['weekly_applications'] },
   { label: 'Remote Preferences', sublabel: 'Remote', required: [] },
   { label: 'Review & Confirm', sublabel: 'Review', required: [] }
 ];
@@ -51,7 +53,8 @@ function Preferences() {
     skills: [],
     industries: [],
     remote_only: false,
-    years_of_experience: ''
+    years_of_experience: '',
+    weekly_applications: ''
   });
   const { tokens } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
@@ -85,7 +88,8 @@ function Preferences() {
             skills: [],
             industries: [],
             remote_only: false,
-            years_of_experience: ''
+            years_of_experience: '',
+            weekly_applications: ''
           });
           setActiveStep(0);
         }
@@ -102,21 +106,27 @@ function Preferences() {
 
   const renderExistingPreferences = () => {
     return (
-      <Box sx={{ width: '100%' }}>
-        <Typography 
-          variant="h4" 
-          gutterBottom
-          sx={{
-            fontSize: { xs: '24px', sm: '32px' },
-            fontWeight: 700,
-            color: '#1a1a1a',
-            mb: 4,
-            textAlign: 'center',
-            letterSpacing: '-0.02em'
-          }}
-        >
-          Your Career Preferences
-        </Typography>
+      <Box sx={{ width: '100%', py: 1 }}>
+        {/* <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Typography 
+            variant="h4" 
+            gutterBottom 
+            sx={{ 
+              fontWeight: 600,
+              color: '#2c3035',
+              letterSpacing: '-0.02em'
+            }}
+          >
+            Your Career Preferences
+          </Typography>
+          <Typography 
+            variant="subtitle1" 
+            color="text.secondary"
+            sx={{ mb: 2 }}
+          >
+            Review and manage your job matching preferences
+          </Typography>
+        </Box> */}
 
         <Paper 
           elevation={0} 
@@ -137,15 +147,24 @@ function Preferences() {
             }}
           >
             {[
-              { title: 'Target Roles', data: preferences.roles, icon: 'work' },
-              { title: 'Years of Experience', data: [preferences.years_of_experience], icon: 'timeline' },
-              { title: 'Locations', data: preferences.locations, icon: 'location_on' },
-              { title: 'Key Skills', data: preferences.skills, icon: 'psychology' },
-              { title: 'Industries', data: preferences.industries, icon: 'business' },
+              { title: 'Target Roles', data: preferences.roles, icon: 'work', color: '#6b59cc' },
+              { title: 'Years of Experience', data: [preferences.years_of_experience], icon: 'timeline', color: '#2e7d32' },
+              { title: 'Locations', data: preferences.locations, icon: 'location_on', color: '#ed6c02' },
+              { title: 'Key Skills', data: preferences.skills, icon: 'psychology', color: '#0288d1' },
+              { title: 'Industries', data: preferences.industries, icon: 'business', color: '#9c27b0' },
               { 
                 title: 'Remote Work', 
                 data: [preferences.remote_only ? "Remote Only" : "Open to Office & Remote"], 
-                icon: 'computer' 
+                icon: 'computer',
+                color: '#1976d2'
+              },
+              {
+                title: 'Weekly Applications',
+                data: [preferences.weekly_applications ? 
+                  `${preferences.weekly_applications} applications per week` : 
+                  'Not specified'],
+                icon: 'schedule',
+                color: '#2196f3'
               }
             ].map((section, index) => (
               <Grid2 
@@ -181,7 +200,8 @@ function Preferences() {
                   }}>
                     <Icon sx={{ 
                       mr: 1.5, 
-                      color: '#6b59cc',
+                      color: section.color,
+                      fontSize: '1.5rem'
                     }}>{section.icon}</Icon>
                     <Typography 
                       variant="h6" 
@@ -398,7 +418,7 @@ function Preferences() {
       
       if (response.status === 200 || response.status === 201) {
         setIsEditing(false);
-        navigate('/dashboard');
+        navigate('/preferences');
       } else {
         throw new Error('Failed to save preferences');
       }
@@ -420,8 +440,10 @@ function Preferences() {
       case 4:
         return <IndustriesStep preferences={preferences} setPreferences={setPreferences} />;
       case 5:
-        return <RemotePreferencesStep preferences={preferences} setPreferences={setPreferences} />;
+        return <WeeklyApplicationsStep preferences={preferences} setPreferences={setPreferences} />;
       case 6:
+        return <RemotePreferencesStep preferences={preferences} setPreferences={setPreferences} />;
+      case 7:
         return <SummaryStep 
           preferences={preferences} 
           isEditing={isEditing}
@@ -582,7 +604,7 @@ function Preferences() {
 
               <Box sx={{ 
                 display: 'flex', 
-                justifyContent: 'space-between',
+                justifyContent: activeStep === steps.length - 1 ? 'flex-start' : 'space-between',
                 mt: 4,
                 pt: 3,
                 borderTop: '1px solid #e0e0e0'
@@ -602,24 +624,7 @@ function Preferences() {
                   Back
                 </Button>
                 
-                {activeStep === steps.length - 1 ? (
-                  <Button
-                    variant="contained"
-                    onClick={handleSubmit}
-                    sx={{
-                      bgcolor: '#2ecc71',
-                      textTransform: 'none',
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      px: 3,
-                      '&:hover': {
-                        bgcolor: '#27ae60'
-                      }
-                    }}
-                  >
-                    Save Changes
-                  </Button>
-                ) : (
+                {activeStep !== steps.length - 1 && (
                   <Button
                     variant="contained"
                     onClick={handleNext}

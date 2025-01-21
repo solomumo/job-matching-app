@@ -8,6 +8,7 @@ from .matching import JobMatcher
 import logging
 from django.contrib.auth import get_user_model
 from users.models import Preferences
+from celery.exceptions import SoftTimeLimitExceeded
 
 logger = get_task_logger(__name__)
 
@@ -40,7 +41,7 @@ def scrape_linkedin_jobs(self):
     logger.info(f"LinkedIn scraping task {self.request.id} completed: {result}")
     return result
 
-@shared_task(bind=True, max_retries=3)
+@shared_task(bind=True, max_retries=3, soft_time_limit=900, time_limit=1000)
 def scrape_myjobmag(self):
     """Scrape jobs from MyJobMag"""
     try:
@@ -48,11 +49,14 @@ def scrape_myjobmag(self):
         new_jobs = scraper.scrape_jobs()
         logger.info(f"Successfully scraped {len(new_jobs)} jobs from MyJobMag")
         return len(new_jobs)
+    except SoftTimeLimitExceeded:
+        logger.warning("MyJobMag scraping reached soft time limit - gracefully stopping")
+        return 0
     except Exception as exc:
         logger.error(f"Error scraping MyJobMag: {str(exc)}")
         raise self.retry(exc=exc, countdown=300)
 
-@shared_task(bind=True, max_retries=3)
+@shared_task(bind=True, max_retries=3, soft_time_limit=900, time_limit=1000)
 def scrape_corporatestaffing(self):
     """Scrape jobs from Corporate Staffing"""
     try:
@@ -60,6 +64,9 @@ def scrape_corporatestaffing(self):
         new_jobs = scraper.scrape_jobs()
         logger.info(f"Successfully scraped {len(new_jobs)} jobs from Corporate Staffing")
         return len(new_jobs)
+    except SoftTimeLimitExceeded:
+        logger.warning("Corporate Staffing scraping reached soft time limit - gracefully stopping")
+        return 0
     except Exception as exc:
         logger.error(f"Error scraping Corporate Staffing: {str(exc)}")
         raise self.retry(exc=exc, countdown=300)

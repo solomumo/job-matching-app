@@ -1,13 +1,16 @@
 import React from 'react';
-import { Box, Typography, Autocomplete, TextField } from '@mui/material';
+import { Box, Typography, Autocomplete, TextField, FormControl, FormHelperText } from '@mui/material';
 import { autocompleteStyles } from './commonStyles';
 import { ROLE_OPTIONS } from '../../constants';
 
 function RolesStep({ preferences, setPreferences }) {
   return (
     <Box>
-      <Typography variant="h6" gutterBottom>
-        What roles are you interested in?
+      <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
+        What roles are you targeting in your job search?
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Select the job roles that best match your career goals and experience.
       </Typography>
       <Autocomplete
         multiple
@@ -25,6 +28,11 @@ function RolesStep({ preferences, setPreferences }) {
           />
         )}
       />
+      <FormControl fullWidth>
+        <FormHelperText>
+          Choose roles that align with your career objectives
+        </FormHelperText>
+      </FormControl>
     </Box>
   );
 }

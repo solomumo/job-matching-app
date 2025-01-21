@@ -40,7 +40,8 @@ class PlanSerializer(serializers.ModelSerializer):
 class PreferencesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Preferences
-        fields = ['roles', 'locations', 'skills', 'industries', 'remote_only', 'years_of_experience']
+        fields = ['roles', 'locations', 'skills', 'industries', 'remote_only', 
+                 'years_of_experience', 'weekly_applications']
         
     def validate(self, data):
         """

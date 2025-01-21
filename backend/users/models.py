@@ -60,6 +60,7 @@ class Preferences(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     years_of_experience = models.CharField(max_length=255)
+    weekly_applications = models.IntegerField(null=True, blank=True)
     
     class Meta:
         verbose_name_plural = "preferences"

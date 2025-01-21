@@ -3,15 +3,25 @@ from fpdf import FPDF
 import os
 import json
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Inches, Pt
 
 class CVGenerator:
     @staticmethod
     def generate_ats_docx(cv_data, output_path=None):
         doc = Document()
+        
+        # Adjust top margin
+        sections = doc.sections
+        for section in sections:
+            section.top_margin = Inches(0.5)  # Reduce top margin to 0.5 inches
 
         # Add Name centered
         name_heading = doc.add_heading(cv_data['name'], level=1)
         name_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        
+        # Reduce space after name heading
+        name_heading_format = name_heading.paragraph_format
+        name_heading_format.space_after = Pt(12)  # Reduce space after heading to 12pt
 
         # Format contact info in one line
         contact_info = cv_data['contact_info']

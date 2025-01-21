@@ -25,18 +25,26 @@ app.conf.beat_schedule = {
         }
     },
     
-    # MyJobMag - once daily at 10 AM
+    # MyJobMag - once daily at 10 AM with adjusted timeouts
     'scrape-myjobmag': {
         'task': 'jobs.tasks.scrape_myjobmag',
-        'schedule': crontab(hour='10', minute='0'),  # 10 AM
-        'options': {'expires': 3600}
+        'schedule': crontab(hour='10', minute='0'),
+        'options': {
+            'expires': 3600,
+            'soft_time_limit': 900,  # 15 minutes
+            'time_limit': 1000,      # ~16.5 minutes
+        }
     },
     
-    # Corporate Staffing - once daily at 10 AM
+    # Corporate Staffing - once daily at 10 AM with adjusted timeouts
     'scrape-corporatestaffing': {
         'task': 'jobs.tasks.scrape_corporatestaffing',
-        'schedule': crontab(hour='10', minute='0'),  # 10 AM
-        'options': {'expires': 3600}
+        'schedule': crontab(hour='10', minute='0'),
+        'options': {
+            'expires': 3600,
+            'soft_time_limit': 900,  # 15 minutes
+            'time_limit': 1000,      # ~16.5 minutes
+        }
     },
     
     # ReliefWeb - twice daily (9 AM and 3 PM)

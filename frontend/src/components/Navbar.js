@@ -111,13 +111,18 @@ const Navbar = () => {
           variant="h6"
           onClick={() => navigate('/')}
           sx={{
-            color: '#6b59cc',
-            fontWeight: 700,
             cursor: 'pointer',
-            fontSize: '20px'
+            fontSize: '24px',
+            fontFamily: "'Inter', sans-serif",
+            letterSpacing: '-0.02em',
+            fontWeight: 900,
+            background: 'linear-gradient(135deg, #6b59cc 0%, #8B7AE0 50%, #2ecc71 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            mr: isMobile ? 2 : 6
           }}
         >
-          LOGO
+          CareerLink
         </Typography>
       </Box>
     );
@@ -197,14 +202,18 @@ const Navbar = () => {
             variant="h6"
             onClick={() => navigate('/')}
             sx={{
-              color: '#6b59cc',
-              fontWeight: 700,
               cursor: 'pointer',
-              fontSize: '20px',
+              fontSize: '24px',
+              fontFamily: "'Inter', sans-serif",
+              letterSpacing: '-0.02em',
+              fontWeight: 900,
+              background: 'linear-gradient(135deg, #6b59cc 0%, #8B7AE0 50%, #2ecc71 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
               mr: isMobile ? 2 : 6
             }}
           >
-            LOGO
+            CareerLink
           </Typography>
         </Box>
 
@@ -298,7 +307,7 @@ const Navbar = () => {
             >
               Plans & Pricing
             </MenuItem>
-            <MenuItem 
+            {/* <MenuItem 
               onClick={() => { handleClose(); navigate('/account'); }}
               sx={{
                 fontSize: '14px',
@@ -310,7 +319,7 @@ const Navbar = () => {
               }}
             >
               Account
-            </MenuItem>
+            </MenuItem> */}
             <MenuItem 
               onClick={handleLogout}
               sx={{

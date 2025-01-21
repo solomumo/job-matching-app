@@ -9,6 +9,8 @@ from .models import Job
 from users.models import ExtractedJobTitles
 from urllib.parse import quote
 from django.utils import timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +90,7 @@ class LinkedInScraper(BaseScraper):
         self.source = 'LINKEDIN'
         self.user = user
         self.base_url = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+        self.max_workers = 10  
 
     def get_search_keywords(self):
         """Get search keywords from user's extracted job titles"""
@@ -176,62 +179,82 @@ class LinkedInScraper(BaseScraper):
         
         return latest_job.created_at if latest_job else None
 
-    def scrape_jobs(self):
-        """Scrape jobs using extracted job titles as keywords and user's preferred locations"""
-        all_jobs = []
-        keywords = self.get_search_keywords()
+    def scrape_keyword_location(self, location, keyword, seconds_since_scrape):
+        saved_jobs = []
         
+        for start in range(0, 100, 10):  # 10 pages per keyword/location pair
+            encoded_keyword = quote(keyword)
+            encoded_location = quote(location)
+            url = (
+                f"{self.base_url}?"
+                f"keywords={encoded_keyword}&"
+                f"location={encoded_location}&"
+                f"geoId=&"
+                f"f_TPR=r{seconds_since_scrape}&"
+                f"start={start}"
+            )
+            
+            logger.info(f"Scraping LinkedIn URL: {url}")
+            soup = self.get_with_retry(url)
+            
+            if not soup or soup.find('div', class_='jobs-search-no-results'):
+                break
+                
+            jobs = self.transform(soup)
+            for job in jobs:
+                if self.save_job(job):
+                    saved_jobs.append(job)
+                    
+            time.sleep(random.randint(3, 15))  # Rate limiting
+            
+        return saved_jobs
+
+    def scrape_jobs(self):
+        keywords = self.get_search_keywords()
         if not keywords:
             logger.warning("No keywords available for scraping")
-            return all_jobs
+            return []
 
         locations = self.get_user_locations()
         last_scrape_time = self.get_last_scrape_time()
-        
-        # Calculate exact seconds since last scrape
-        seconds_since_scrape = int((timezone.now() - last_scrape_time).total_seconds()) if last_scrape_time else 86400  # Default to 24 hours if no last scrape
-        
+        seconds_since_scrape = int((timezone.now() - last_scrape_time).total_seconds()) if last_scrape_time else 86400
+
         logger.info(f"Starting LinkedIn scrape with keywords: {keywords} and locations: {locations}")
         logger.info(f"Seconds since last scrape: {seconds_since_scrape}")
 
-        for location in locations:
-            for keyword in keywords:
+        # Generate tasks
+        tasks = [
+            (location, keyword)
+            for location in locations
+            for keyword in keywords
+        ]
+
+        all_jobs = []
+        
+        # Use ThreadPoolExecutor for parallel scraping
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {
+                executor.submit(
+                    self.scrape_keyword_location, 
+                    location, 
+                    keyword, 
+                    seconds_since_scrape
+                ): (location, keyword)
+                for location, keyword in tasks
+            }
+
+            # Process task results as they complete
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Scraping LinkedIn jobs"):
+                location, keyword = futures[future]
                 try:
-                    encoded_keyword = quote(keyword)
-                    encoded_location = quote(location)
-                    
-                    # Paginate through results
-                    for i in range(10):
-                        url = (
-                            f"{self.base_url}?"
-                            f"keywords={encoded_keyword}&"
-                            f"location={encoded_location}&"
-                            f"geoId=&"
-                            f"f_TPR=r{seconds_since_scrape}&"
-                            f"start={10 * i}"
-                        )
-                        
-                        logger.info(f"Scraping LinkedIn URL: {url}")
-                        
-                        soup = self.get_with_retry(url)
-                        if not soup or soup.find('div', class_='jobs-search-no-results'):
-                            logger.info("No more results found, moving to next keyword/location")
-                            break
-                            
-                        jobs = self.transform(soup)
-                        if not jobs:  # If no jobs found on this page
-                            break
-                            
-                        for job in jobs:
-                            if self.save_job(job):
-                                all_jobs.append(job)
-                        
-                        delay = random.randint(5, 15)
-                        time.sleep(delay)
-                    
+                    jobs = future.result()
+                    if jobs:
+                        all_jobs.extend(jobs)
+                        logger.info(f"Successfully scraped {len(jobs)} jobs for keyword '{keyword}' in location '{location}'.")
+                    else:
+                        logger.info(f"No jobs found for keyword '{keyword}' in location '{location}'.")
                 except Exception as e:
-                    logger.error(f"Error scraping LinkedIn for {keyword} in {location}: {str(e)}")
-                    continue
+                    logger.error(f"Error scraping for keyword '{keyword}' in location '{location}': {e}")
 
         logger.info(f"LinkedIn scrape complete. Found {len(all_jobs)} new jobs")
         return all_jobs
@@ -241,7 +264,8 @@ class MyJobMagScraper(BaseScraper):
         super().__init__()
         self.source = 'MYJOBMAG'
         self.base_url = "https://www.myjobmag.co.ke/jobs/page/"
-        self.pages = 5
+        self.pages = 5  # Reduced from original if it was higher
+        self.max_workers = 5  # Add concurrent processing
 
     def get_job_urls(self, page_url):
         """Extract job URLs from a single page based on updated structure."""
@@ -345,24 +369,50 @@ class MyJobMagScraper(BaseScraper):
     def scrape_jobs(self):
         new_jobs = []
         
-        # Loop through pages to collect job URLs
-        for page in range(1, self.pages + 1):
-            page_url = f"{self.base_url}{page}/"
-            job_urls = self.get_job_urls(page_url)
-            
-            if not job_urls:
-                logger.info(f"No job URLs found on page {page}. Continuing to next page.")
-                continue
-
-            # Loop through collected job URLs to fetch job details
-            for job_url in job_urls:
+        def process_job_url(job_url):
+            """Helper function to process a single job URL"""
+            try:
                 job_data = self.get_job_details(job_url)
                 if job_data and self.save_job(job_data):
-                    new_jobs.append(job_data)
-                    
-            logger.info(f"Waiting before moving to page {page + 1}")
-            time.sleep(30)
+                    return job_data
+            except Exception as e:
+                logger.error(f"Error processing job URL {job_url}: {str(e)}")
+            return None
 
+        try:
+            # Use ThreadPoolExecutor for parallel processing
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                for page in range(1, self.pages + 1):
+                    page_url = f"{self.base_url}{page}/"
+                    job_urls = self.get_job_urls(page_url)
+                    
+                    if not job_urls:
+                        logger.info(f"No job URLs found on page {page}. Continuing to next page.")
+                        continue
+
+                    # Submit all jobs for this page to the thread pool
+                    future_to_url = {
+                        executor.submit(process_job_url, job_url): job_url 
+                        for job_url in job_urls
+                    }
+
+                    # Process results as they complete
+                    for future in as_completed(future_to_url):
+                        job_url = future_to_url[future]
+                        try:
+                            job_data = future.result()
+                            if job_data:
+                                new_jobs.append(job_data)
+                        except Exception as e:
+                            logger.error(f"Error processing future for {job_url}: {str(e)}")
+
+                    logger.info(f"Completed page {page}. Found {len(new_jobs)} new jobs so far.")
+                    time.sleep(2)  # Short delay between pages
+
+        except Exception as e:
+            logger.error(f"Error in scrape_jobs: {str(e)}")
+            
+        logger.info(f"MyJobMag scraping completed. Total new jobs found: {len(new_jobs)}")
         return new_jobs
 
 class CorporateStaffingScraper(BaseScraper):
@@ -371,6 +421,7 @@ class CorporateStaffingScraper(BaseScraper):
         self.source = 'CORPORATESTAFFING'
         self.base_url = "https://www.corporatestaffing.co.ke/jobs/page/"
         self.pages = 5
+        self.max_workers = 5  # Add concurrent processing
 
     def get_job_urls(self, page_url):
         """Extract job URLs from a single page."""
@@ -433,24 +484,50 @@ class CorporateStaffingScraper(BaseScraper):
     def scrape_jobs(self):
         new_jobs = []
         
-        # Loop through pages to collect job URLs
-        for page in range(1, self.pages + 1):
-            page_url = f"{self.base_url}{page}/"
-            job_urls = self.get_job_urls(page_url)
-            
-            if not job_urls:
-                logger.info(f"No job URLs found on page {page}. Continuing to next page.")
-                continue
-
-            # Loop through collected job URLs to fetch job details
-            for job_url in job_urls:
+        def process_job_url(job_url):
+            """Helper function to process a single job URL"""
+            try:
                 job_data = self.get_job_details(job_url)
                 if job_data and self.save_job(job_data):
-                    new_jobs.append(job_data)
-                    
-            logger.info(f"Waiting before moving to page {page + 1}")
-            time.sleep(30)
+                    return job_data
+            except Exception as e:
+                logger.error(f"Error processing job URL {job_url}: {str(e)}")
+            return None
 
+        try:
+            # Use ThreadPoolExecutor for parallel processing
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                for page in range(1, self.pages + 1):
+                    page_url = f"{self.base_url}{page}/"
+                    job_urls = self.get_job_urls(page_url)
+                    
+                    if not job_urls:
+                        logger.info(f"No job URLs found on page {page}. Continuing to next page.")
+                        continue
+
+                    # Submit all jobs for this page to the thread pool
+                    future_to_url = {
+                        executor.submit(process_job_url, job_url): job_url 
+                        for job_url in job_urls
+                    }
+
+                    # Process results as they complete
+                    for future in as_completed(future_to_url):
+                        job_url = future_to_url[future]
+                        try:
+                            job_data = future.result()
+                            if job_data:
+                                new_jobs.append(job_data)
+                        except Exception as e:
+                            logger.error(f"Error processing future for {job_url}: {str(e)}")
+
+                    logger.info(f"Completed page {page}. Found {len(new_jobs)} new jobs so far.")
+                    time.sleep(2)  # Short delay between pages
+
+        except Exception as e:
+            logger.error(f"Error in scrape_jobs: {str(e)}")
+            
+        logger.info(f"Corporate Staffing scraping completed. Total new jobs found: {len(new_jobs)}")
         return new_jobs
 
 class ReliefWebScraper(BaseScraper):

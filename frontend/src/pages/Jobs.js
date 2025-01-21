@@ -23,8 +23,6 @@ import {
 import { 
   Work, 
   Description, 
-  BookmarkBorder, 
-  Bookmark,
   FilterList,
   Visibility,
   VisibilityOff,
@@ -89,17 +87,6 @@ const Jobs = () => {
     fetchJobs();
   }, [showHidden, sortBy]);
 
-  const handleToggleBookmark = async (jobMatch) => {
-    try {
-      const response = await api.post(`/api/jobs/${jobMatch.job.id}/bookmark/`);
-      setJobs(jobs.map(item => 
-        item.id === jobMatch.id ? { ...item, is_bookmarked: response.data.is_bookmarked } : item
-      ));
-    } catch (error) {
-      console.error('Error toggling bookmark:', error);
-    }
-  };
-
   const handleToggleHidden = async (jobMatch) => {
     try {
       const response = await api.post(`/api/jobs/${jobMatch.job.id}/hide/`);
@@ -143,20 +130,29 @@ const Jobs = () => {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Header Section */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Your Matched Jobs
-        </Typography>
+      <Box sx={{ mb: 3 }}>
         <Stack direction="row" spacing={2} alignItems="center">
           <Button
             startIcon={showHidden ? <Visibility /> : <VisibilityOff />}
             onClick={() => setShowHidden(!showHidden)}
+            sx={{
+              color: '#6b59cc',
+              '&:hover': {
+                bgcolor: 'rgba(107, 89, 204, 0.04)'
+              }
+            }}
           >
             {showHidden ? 'Show Active' : 'Show Hidden'}
           </Button>
           <Button
             startIcon={<Sort />}
             onClick={(e) => setAnchorEl(e.currentTarget)}
+            sx={{
+              color: '#6b59cc',
+              '&:hover': {
+                bgcolor: 'rgba(107, 89, 204, 0.04)'
+              }
+            }}
           >
             Sort By
           </Button>
@@ -173,6 +169,41 @@ const Jobs = () => {
             </MenuItem>
           </Menu>
         </Stack>
+      </Box>
+
+      {/* Preferences Call-to-Action - with consistent spacing */}
+      <Box 
+        sx={{ 
+          mb: 3,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          px: 1
+        }}
+      >
+        <Typography 
+          sx={{ 
+            color: 'text.secondary',
+            fontSize: '1rem',
+          }}
+        >
+          Not seeing the right matches?
+        </Typography>
+        <Typography
+          component="span"
+          onClick={() => navigate('/preferences')}
+          sx={{
+            color: '#6b59cc',
+            fontSize: '1rem',
+            cursor: 'pointer',
+            textDecoration: 'underline',
+            '&:hover': {
+              color: '#5a4ab8'
+            }
+          }}
+        >
+          Review your preferences
+        </Typography>
       </Box>
 
       {/* Jobs Grid */}
@@ -201,13 +232,13 @@ const Jobs = () => {
                     position: 'absolute',
                     top: 16,
                     right: 16,
-                    bgcolor: jobMatch.match_score >= 75 ? 'success.main' : 'warning.main',
+                    background: `linear-gradient(90deg, #6b59cc 0%, #2ecc71 100%)`,
                     color: 'white',
-                    borderRadius: '12px',
-                    px: 1,
+                    borderRadius: '16px',
+                    px: 2,
                     py: 0.5,
                     fontSize: '0.875rem',
-                    fontWeight: 'bold',
+                    fontWeight: 600,
                     zIndex: 1,
                   }}
                 >
@@ -257,11 +288,16 @@ const Jobs = () => {
                 <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
                   <Button 
                     variant="contained" 
-                    color="primary"
+                    size="small"
                     startIcon={<Work />}
                     href={jobMatch.job.url}
                     target="_blank"
-                    size="small"
+                    sx={{
+                      bgcolor: '#6b59cc',
+                      '&:hover': {
+                        bgcolor: '#5a4ab8'
+                      }
+                    }}
                   >
                     Apply
                   </Button>
@@ -271,6 +307,14 @@ const Jobs = () => {
                     startIcon={<Description />}
                     size="small"
                     onClick={() => handleGetCV(jobMatch)}
+                    sx={{
+                      color: '#6b59cc',
+                      borderColor: '#6b59cc',
+                      '&:hover': {
+                        borderColor: '#5a4ab8',
+                        bgcolor: 'rgba(107, 89, 204, 0.04)'
+                      }
+                    }}
                   >
                     Get CV
                   </Button>
@@ -292,6 +336,14 @@ const Jobs = () => {
                             console.error('Error marking job as applied:', error);
                           }
                         }}
+                        sx={{
+                          '& .MuiSwitch-switchBase.Mui-checked': {
+                            color: '#6b59cc',
+                          },
+                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                            backgroundColor: '#6b59cc',
+                          }
+                        }}
                       />
                       <Typography variant="caption" color="text.secondary">
                         Applied
@@ -299,21 +351,21 @@ const Jobs = () => {
                     </Box>
                   </Tooltip>
                   
-                  <IconButton 
-                    size="small"
-                    onClick={() => handleToggleBookmark(jobMatch)}
-                    color={jobMatch.is_bookmarked ? "primary" : "default"}
-                  >
-                    {jobMatch.is_bookmarked ? <Bookmark /> : <BookmarkBorder />}
-                  </IconButton>
-                  
-                  <IconButton
-                    size="small"
-                    onClick={() => handleToggleHidden(jobMatch)}
-                    color={jobMatch.is_hidden ? "error" : "default"}
-                  >
-                    {jobMatch.is_hidden ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
+                  <Tooltip title={jobMatch.is_hidden ? "Unhide job" : "Hide job"}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleToggleHidden(jobMatch)}
+                      sx={{
+                        color: jobMatch.is_hidden ? '#6b59cc' : 'text.secondary',
+                        '&:hover': {
+                          color: '#5a4ab8',
+                          bgcolor: 'rgba(107, 89, 204, 0.04)'
+                        }
+                      }}
+                    >
+                      {jobMatch.is_hidden ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </Tooltip>
                 </Box>
               </CardContent>
             </Card>
@@ -364,9 +416,14 @@ const Jobs = () => {
               <Button onClick={() => setSelectedJob(null)}>Close</Button>
               <Button 
                 variant="contained" 
-                color="primary"
                 href={selectedJob.job.url}
                 target="_blank"
+                sx={{
+                  bgcolor: '#6b59cc',
+                  '&:hover': {
+                    bgcolor: '#5a4ab8'
+                  }
+                }}
               >
                 Apply Now
               </Button>
